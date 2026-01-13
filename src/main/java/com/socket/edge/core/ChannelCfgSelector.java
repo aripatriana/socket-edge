@@ -10,7 +10,7 @@ import java.util.List;
 
 public final class ChannelCfgSelector {
 
-    public ChannelCfg select(SocketType socketType,
+    public ChannelCfg select(String channelName, SocketType socketType,
                              InetSocketAddress local,
                              InetSocketAddress remote,
                              List<ChannelCfg> channelCfgs
@@ -20,24 +20,25 @@ public final class ChannelCfgSelector {
         int remotePort = remote.getPort();
 
         for (ChannelCfg ch : channelCfgs) {
-
-            if (socketType.equals(SocketType.SOCKET_SERVER)) {
-                ServerChannel serverChannel = ch.server();
-                if (serverChannel.listenPort() == localPort
-                        && serverChannel.pool()
-                                .stream()
-                                .anyMatch(p -> p.host().equalsIgnoreCase(remoteHost))) {
-                    return ch;
-                }
-            } else if (socketType.equals(SocketType.SOCKET_CLIENT)) {
-                ClientChannel clientChannel = ch.client();
-                if (clientChannel.endpoints()
-                        .stream()
-                        .anyMatch(e ->
-                                e.host().equalsIgnoreCase(remoteHost)
-                                        && e.port() == remotePort
-                        )) {
-                    return ch;
+            if (ch.name().equals(channelName)) {
+                if (socketType.equals(SocketType.SOCKET_SERVER)) {
+                    ServerChannel serverChannel = ch.server();
+                    if (serverChannel.listenPort() == localPort
+                            && serverChannel.pool()
+                                    .stream()
+                                    .anyMatch(p -> p.host().equalsIgnoreCase(remoteHost))) {
+                        return ch;
+                    }
+                } else if (socketType.equals(SocketType.SOCKET_CLIENT)) {
+                    ClientChannel clientChannel = ch.client();
+                    if (clientChannel.endpoints()
+                            .stream()
+                            .anyMatch(e ->
+                                    e.host().equalsIgnoreCase(remoteHost)
+                                            && e.port() == remotePort
+                            )) {
+                        return ch;
+                    }
                 }
             }
         }

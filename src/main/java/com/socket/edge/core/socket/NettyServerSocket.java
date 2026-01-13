@@ -1,7 +1,8 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
-import com.socket.edge.model.PoolEndpoint;
+import com.socket.edge.model.SocketEndpoint;
+import com.socket.edge.model.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
 import com.socket.edge.utils.IsoParser;
@@ -24,7 +25,6 @@ public class NettyServerSocket extends AbstractSocket {
     private static final Logger log = LoggerFactory.getLogger(NettyServerSocket.class);
 
     private final int port;
-    private final Set<PoolEndpoint> allowlist;
     private final List<SocketChannel> activeChannels = new CopyOnWriteArrayList<>();
     private EventLoopGroup boss;
     private EventLoopGroup worker;
@@ -32,16 +32,14 @@ public class NettyServerSocket extends AbstractSocket {
     private IsoParser parser;
     private ForwardService forward;
     private SocketChannelPool channelPool;
+    private SocketType socketType = SocketType.SOCKET_SERVER;
 
-    public NettyServerSocket(String name, int port, List<PoolEndpoint> allowlist, IsoParser parser, ForwardService forward) {
+    public NettyServerSocket(String name, int port, List<SocketEndpoint> allowlist, IsoParser parser, ForwardService forward) {
         super(String.format("%s_server-%d",name, port), name);
         this.port = port;
-        this.allowlist = Set.copyOf(allowlist);
         this.parser = parser;
         this.forward = forward;
-        this.channelPool = new SocketChannelPool(getId(), allowlist.stream()
-                .map(PoolEndpoint::host)
-                .toList());
+        this.channelPool = new SocketChannelPool(getId(), socketType, allowlist);
     }
 
     @Override

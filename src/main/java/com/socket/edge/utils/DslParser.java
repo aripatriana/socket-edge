@@ -165,7 +165,7 @@ public final class DslParser {
 
         String listenHost = null;
         int listenPort = -1;
-        List<PoolEndpoint> pool = new ArrayList<>();
+        List<SocketEndpoint> pool = new ArrayList<>();
         String strategy = null;
 
         for (String line : block.split("\n")) {
@@ -206,7 +206,7 @@ public final class DslParser {
                 }
 
                 pool.add(
-                        new PoolEndpoint(host, port, weight, priority)
+                        new SocketEndpoint(host, port, weight, priority)
                 );
             }
 
@@ -222,7 +222,7 @@ public final class DslParser {
         }
 
         Set<String> poolSeen = new HashSet<>();
-        for (PoolEndpoint e : pool) {
+        for (SocketEndpoint e : pool) {
             String key = e.host() + ":" + e.port();
             if (!poolSeen.add(key)) {
                 throw new IllegalStateException("duplicate pool endpoint: " + key);
@@ -243,7 +243,7 @@ public final class DslParser {
 
     private ClientChannel parseClient(String block) {
 
-        List<ClientEndpoint> endpoints = new ArrayList<>();
+        List<SocketEndpoint> endpoints = new ArrayList<>();
         String strategy = Strategy.ROUNDROBIN.name();
 
         for (String line : block.split("\n")) {
@@ -280,7 +280,7 @@ public final class DslParser {
                 }
 
                 endpoints.add(
-                        new ClientEndpoint(host, port, weight, priority)
+                        new SocketEndpoint(host, port, weight, priority)
                 );
             }
 
@@ -298,7 +298,7 @@ public final class DslParser {
         }
 
         Set<String> seen = new HashSet<>();
-        for (ClientEndpoint e : endpoints) {
+        for (SocketEndpoint e : endpoints) {
             String key = e.host() + ":" + e.port();
             if (!seen.add(key)) {
                 throw new IllegalStateException("duplicate client endpoint: " + key);

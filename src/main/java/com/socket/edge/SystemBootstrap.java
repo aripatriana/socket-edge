@@ -19,7 +19,7 @@ import com.socket.edge.core.transport.ServerTransport;
 import com.socket.edge.core.transport.TransportProvider;
 import com.socket.edge.http.service.*;
 import com.socket.edge.model.ChannelCfg;
-import com.socket.edge.model.ClientEndpoint;
+import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.http.NettyHttpServer;
@@ -27,7 +27,6 @@ import com.socket.edge.utils.IsoParser;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.apache.camel.CamelContext;
-import org.apache.camel.builder.ThreadPoolProfileBuilder;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOPackager;
@@ -41,8 +40,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class SystemBootstrap {
 
@@ -154,12 +151,11 @@ public class SystemBootstrap {
 
                 List<NettyClientSocket> clientSockets = new ArrayList<>();
 
-                for (ClientEndpoint host : cfg.client().endpoints()) {
+                for (SocketEndpoint se : cfg.client().endpoints()) {
                     NettyClientSocket clientSocket =
                             new NettyClientSocket(
                                     cfg.name(),
-                                    host.host(),
-                                    host.port(),
+                                    se,
                                     parser,
                                     forward
                             );

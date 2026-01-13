@@ -1,6 +1,8 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.LoadAware;
+import com.socket.edge.core.strategy.WeightedCandidate;
+import com.socket.edge.model.SocketEndpoint;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -9,17 +11,19 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SocketChannel implements LoadAware {
+public class SocketChannel implements WeightedCandidate, LoadAware {
 
     private static final Logger log = LoggerFactory.getLogger(SocketChannel.class);
 
     private final Channel channel;
     private final AtomicInteger inflight = new AtomicInteger(0);
     private String socketId;
+    private SocketEndpoint se;
 
-    public SocketChannel(String socketId, Channel channel) {
+    public SocketChannel(String socketId, Channel channel, SocketEndpoint se) {
         this.socketId = socketId;
         this.channel = channel;
+        this.se = se;
     }
 
     public Channel channel() {
@@ -59,5 +63,15 @@ public class SocketChannel implements LoadAware {
 
     public ChannelFuture close() {
         return channel.close();
+    }
+
+    @Override
+    public int getWeight() {
+        return se.getWeight();
+    }
+
+    @Override
+    public int getPriority() {
+        return se.getPriority();
     }
 }

@@ -16,10 +16,9 @@ public final class TransportProvider {
         transports.put(key, transport);
     }
 
-    public Transport resolve(ChannelCfg channelCfg, SocketType socketType) {
-        Objects.requireNonNull(socketType, "Socket Type is null");
-        SocketType targetChannel = socketType.equals(SocketType.SOCKET_SERVER) ? SocketType.SOCKET_CLIENT : SocketType.SOCKET_SERVER;
-        Transport transport = transports.get(targetChannel.name() + "|" + channelCfg.name());
+    public Transport resolve(ChannelCfg channelCfg, SocketType outboundSocketType) {
+        Objects.requireNonNull(outboundSocketType, "Outbound Socket Type is null");
+        Transport transport = transports.get(outboundSocketType.name() + "|" + channelCfg.name());
         Objects.requireNonNull(transport, "No transport for channelCfg " + channelCfg);
         return transport;
     }

@@ -77,7 +77,8 @@ public class SEEngine extends RouteBuilder {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
 
                     ChannelCfg cfg = channelCfgSelector.select(
-                            ctx.getSocketType(),
+                            ctx.getChannelName(),
+                            ctx.getInboundSocketType(),
                             ctx.getLocalAddress(),
                             ctx.getRemoteAddress(),
                             metadata.channelCfgs()
@@ -149,7 +150,7 @@ public class SEEngine extends RouteBuilder {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     Transport transport =
-                            transportProvider.resolve(ctx.getChannelCfg(), ctx.getSocketType());
+                            transportProvider.resolve(ctx.getChannelCfg(), ctx.getOutboundSocketType());
 
                     if (!transport.isUp()) {
                         throw new IllegalStateException("Transport DOWN");

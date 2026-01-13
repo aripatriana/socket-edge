@@ -5,6 +5,6 @@ import java.util.List;
 public record ServerChannel(
         String listenHost,
         int listenPort,
-        List<PoolEndpoint> pool,
+        List<SocketEndpoint> pool,
         String strategy
 ) {}

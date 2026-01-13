@@ -38,10 +38,13 @@ public final class ServerInboundHandler
 
         Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
         MessageContext msgCtx = new MessageContext(parsedIsoFields, rawBytes);
+        msgCtx.setSocketId(serverSocket.getId());
+        msgCtx.setChannelName(serverSocket.getName());
         msgCtx.setChannel(ctx.channel());
         msgCtx.setLocalAddress((InetSocketAddress) ctx.channel().localAddress());
         msgCtx.setRemoteAddress((InetSocketAddress) ctx.channel().remoteAddress());
-        msgCtx.setSocketType(SocketType.SOCKET_SERVER);
+        msgCtx.setInboundSocketType(SocketType.SOCKET_SERVER);
+        msgCtx.setOutboundSocketType(SocketType.SOCKET_CLIENT);
         msgCtx.addProperty("received_time", start);
 
         forwardService.forward(msgCtx);

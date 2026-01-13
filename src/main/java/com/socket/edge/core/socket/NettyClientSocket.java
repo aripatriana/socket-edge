@@ -1,6 +1,8 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
+import com.socket.edge.model.SocketEndpoint;
+import com.socket.edge.model.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
 import com.socket.edge.utils.IsoParser;
@@ -37,11 +39,12 @@ public class NettyClientSocket extends AbstractSocket {
     private IsoParser parser;
     private ForwardService forward;
     private SocketChannelPool channelPool;
+    private SocketType socketType = SocketType.SOCKET_CLIENT;
 
-    public NettyClientSocket(String name, String host, int port, IsoParser parser, ForwardService forward) {
-        super(String.format("%s-client-%s:%d",name, host,port), name);
-        this.host = host;
-        this.port = port;
+    public NettyClientSocket(String name, SocketEndpoint se, IsoParser parser, ForwardService forward) {
+        super(String.format("%s-client-%s:%d",name, se.host(),se.port()), name);
+        this.host = se.host();
+        this.port = se.port();
         this.group = new NioEventLoopGroup(
                 1,
                 new DefaultThreadFactory(
@@ -56,7 +59,7 @@ public class NettyClientSocket extends AbstractSocket {
         );
         this.parser = parser;
         this.forward = forward;
-        this.channelPool = new SocketChannelPool(getId(), Collections.singletonList(host));
+        this.channelPool = new SocketChannelPool(getId(), socketType, Collections.singletonList(se));
     }
 
     @Override

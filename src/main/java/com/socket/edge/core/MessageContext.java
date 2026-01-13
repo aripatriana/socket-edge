@@ -12,6 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class MessageContext {
 
+    private String socketId;
+    private String channelName;
     private final Map<String, String> isoFields;
     private Direction direction;
     private ChannelCfg channelCfg;
@@ -20,13 +22,30 @@ public final class MessageContext {
     private byte[] rawBytes;
     private InetSocketAddress localAddress;
     private InetSocketAddress remoteAddress;
-    private SocketType socketType;
+    private SocketType inboundSocketType;
+    private SocketType outboundSocketType;
     private Iso8583Profile profile;
     private Map<String, Object> properties = new ConcurrentHashMap<>();
 
     public MessageContext(Map<String, String> isoFields, byte[] rawBytes) {
         this.isoFields = isoFields;
         this.rawBytes = rawBytes;
+    }
+
+    public void setSocketId(String socketId) {
+        this.socketId = socketId;
+    }
+
+    public String getSocketId() {
+        return socketId;
+    }
+
+    public void setChannelName(String channelName) {
+        this.channelName = channelName;
+    }
+
+    public String getChannelName() {
+        return channelName;
     }
 
     public byte[] getRawBytes() {
@@ -89,12 +108,20 @@ public final class MessageContext {
         this.remoteAddress = remoteAddress;
     }
 
-    public SocketType getSocketType() {
-        return socketType;
+    public SocketType getInboundSocketType() {
+        return inboundSocketType;
     }
 
-    public void setSocketType(SocketType socketType) {
-        this.socketType = socketType;
+    public void setInboundSocketType(SocketType inboundSocketType) {
+        this.inboundSocketType = inboundSocketType;
+    }
+
+    public SocketType getOutboundSocketType() {
+        return outboundSocketType;
+    }
+
+    public void setOutboundSocketType(SocketType outboundSocketType) {
+        this.outboundSocketType = outboundSocketType;
     }
 
     public void setProfile(Iso8583Profile profile) {
