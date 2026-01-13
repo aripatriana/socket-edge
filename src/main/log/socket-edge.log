@@ -1,0 +1,106 @@
+2026-01-13 07:00:38.731 [main] INFO  com.socket.edge.SystemBootstrap - Starting..
+2026-01-13 07:00:38.764 [main] INFO  com.socket.edge.SystemBootstrap - System initializing..
+2026-01-13 07:00:38.769 [main] INFO  com.socket.edge.SystemBootstrap - Load configuration..
+2026-01-13 07:00:38.839 [main] INFO  com.socket.edge.SystemBootstrap - Setup router engine..
+2026-01-13 07:00:39.005 [main] INFO  o.a.camel.util.concurrent.ThreadType - The type of thread detected is PLATFORM
+2026-01-13 07:02:59.081 [main] INFO  com.socket.edge.SystemBootstrap - Starting..
+2026-01-13 07:02:59.084 [main] INFO  com.socket.edge.SystemBootstrap - System initializing..
+2026-01-13 07:02:59.098 [main] INFO  com.socket.edge.SystemBootstrap - Load configuration..
+2026-01-13 07:02:59.170 [main] INFO  com.socket.edge.SystemBootstrap - Setup router engine..
+2026-01-13 07:02:59.315 [main] INFO  o.a.camel.util.concurrent.ThreadType - The type of thread detected is PLATFORM
+2026-01-13 07:03:35.747 [main] INFO  com.socket.edge.SystemBootstrap - Starting..
+2026-01-13 07:03:35.749 [main] INFO  com.socket.edge.SystemBootstrap - System initializing..
+2026-01-13 07:03:35.761 [main] INFO  com.socket.edge.SystemBootstrap - Load configuration..
+2026-01-13 07:03:35.870 [main] INFO  com.socket.edge.SystemBootstrap - Setup router engine..
+2026-01-13 07:03:36.101 [main] INFO  o.a.camel.util.concurrent.ThreadType - The type of thread detected is PLATFORM
+2026-01-13 07:03:36.489 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) is starting
+2026-01-13 07:03:36.499 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Using ThreadPoolFactory: com.socket.edge.core.VirtualThreadPoolFactory@54a67a45
+2026-01-13 07:03:36.554 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Routes startup (started:4)
+2026-01-13 07:03:36.554 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-receive (seda://receive)
+2026-01-13 07:03:36.554 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-inbound (seda://inbound)
+2026-01-13 07:03:36.554 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-outbound (seda://outbound)
+2026-01-13 07:03:36.554 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-unknown (seda://unknown)
+2026-01-13 07:03:36.554 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) started in 65ms (build:0ms init:0ms start:65ms)
+2026-01-13 07:03:36.558 [main] INFO  com.socket.edge.SystemBootstrap - Socket initializing..
+2026-01-13 07:03:37.094 [main] WARN  io.netty.bootstrap.ServerBootstrap - Unknown channel option 'SO_KEEPALIVE' for channel '[id: 0xf475f85e]'
+2026-01-13 07:03:37.111 [main] INFO  c.s.e.core.socket.NettyServerSocket - fello_server-27000 listening on 27000
+2026-01-13 07:03:37.135 [main] INFO  com.socket.edge.SystemBootstrap - Start httpserver..
+2026-01-13 07:03:37.155 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 1s (retry=1)
+2026-01-13 07:03:37.156 [main] INFO  c.socket.edge.http.NettyHttpServer - Httpserver socket-edge listen on 9001
+2026-01-13 07:03:37.158 [main] INFO  com.socket.edge.SystemBootstrap - Started took 1409ms
+2026-01-13 07:03:38.189 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 2s (retry=2)
+2026-01-13 07:03:40.208 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 4s (retry=3)
+2026-01-13 07:03:44.219 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 8s (retry=4)
+2026-01-13 07:03:52.239 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 16s (retry=5)
+2026-01-13 07:04:08.252 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=6)
+2026-01-13 07:04:38.269 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=7)
+2026-01-13 07:05:08.296 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=8)
+2026-01-13 07:05:38.359 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=9)
+2026-01-13 07:06:08.392 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=10)
+2026-01-13 07:06:14.971 [Thread-0] INFO  com.socket.edge.SystemBootstrap - Shutdown signal received...
+2026-01-13 07:06:14.973 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) is shutting down (timeout:45s)
+2026-01-13 07:06:19.610 [main] INFO  com.socket.edge.SystemBootstrap - Starting..
+2026-01-13 07:06:19.612 [main] INFO  com.socket.edge.SystemBootstrap - System initializing..
+2026-01-13 07:06:19.620 [main] INFO  com.socket.edge.SystemBootstrap - Load configuration..
+2026-01-13 07:06:19.694 [main] INFO  com.socket.edge.SystemBootstrap - Setup router engine..
+2026-01-13 07:06:19.868 [main] INFO  o.a.camel.util.concurrent.ThreadType - The type of thread detected is PLATFORM
+2026-01-13 07:06:20.124 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) is starting
+2026-01-13 07:06:20.133 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Using ThreadPoolFactory: com.socket.edge.core.VirtualThreadPoolFactory@54a67a45
+2026-01-13 07:06:20.170 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Routes startup (started:4)
+2026-01-13 07:06:20.171 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-receive (seda://receive)
+2026-01-13 07:06:20.171 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-inbound (seda://inbound)
+2026-01-13 07:06:20.171 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-outbound (seda://outbound)
+2026-01-13 07:06:20.171 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-unknown (seda://unknown)
+2026-01-13 07:06:20.171 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) started in 45ms (build:0ms init:0ms start:45ms)
+2026-01-13 07:06:20.174 [main] INFO  com.socket.edge.SystemBootstrap - Socket initializing..
+2026-01-13 07:06:20.703 [main] INFO  c.s.e.core.socket.NettyServerSocket - fello_server-27000 listening on 27000
+2026-01-13 07:06:20.727 [main] INFO  com.socket.edge.SystemBootstrap - Start httpserver..
+2026-01-13 07:06:20.751 [main] INFO  c.socket.edge.http.NettyHttpServer - Httpserver socket-edge listen on 9001
+2026-01-13 07:06:20.752 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 1s (retry=1)
+2026-01-13 07:06:20.752 [main] INFO  com.socket.edge.SystemBootstrap - Started took 1140ms
+2026-01-13 07:06:21.771 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 2s (retry=2)
+2026-01-13 07:06:23.789 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 4s (retry=3)
+2026-01-13 07:06:27.813 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 8s (retry=4)
+2026-01-13 07:06:35.830 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 16s (retry=5)
+2026-01-13 07:06:38.972 [Thread-0] INFO  com.socket.edge.SystemBootstrap - Shutdown signal received...
+2026-01-13 07:06:38.974 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) is shutting down (timeout:45s)
+2026-01-13 07:06:42.406 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Routes stopped (stopped:4)
+2026-01-13 07:06:42.406 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-unknown (seda://unknown)
+2026-01-13 07:06:42.406 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-outbound (seda://outbound)
+2026-01-13 07:06:42.407 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-inbound (seda://inbound)
+2026-01-13 07:06:42.407 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-receive (seda://receive)
+2026-01-13 07:06:42.419 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.4.0 (camel-1) shutdown in 3s445ms (uptime:22s)
+2026-01-13 07:06:42.427 [Thread-0] INFO  com.socket.edge.SystemBootstrap - Gracefully shutdown took 3455ms
+2026-01-13 07:14:23.052 [main] INFO  com.socket.edge.SystemBootstrap - Starting..
+2026-01-13 07:14:23.053 [main] INFO  com.socket.edge.SystemBootstrap - System initializing..
+2026-01-13 07:14:23.073 [main] INFO  com.socket.edge.SystemBootstrap - Load configuration..
+2026-01-13 07:14:23.173 [main] INFO  com.socket.edge.SystemBootstrap - Setup router engine..
+2026-01-13 07:14:23.649 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.14.0 (camel-1) is starting
+2026-01-13 07:14:23.661 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Using ThreadPoolFactory: com.socket.edge.core.VirtualThreadPoolFactory@424fd310
+2026-01-13 07:14:23.685 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Routes startup (total:4)
+2026-01-13 07:14:23.685 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-receive (seda://receive)
+2026-01-13 07:14:23.685 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-inbound (seda://inbound)
+2026-01-13 07:14:23.685 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-outbound (seda://outbound)
+2026-01-13 07:14:23.685 [main] INFO  o.a.c.i.engine.AbstractCamelContext -     Started engine-unknown (seda://unknown)
+2026-01-13 07:14:23.685 [main] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.14.0 (camel-1) started in 32ms (build:0ms init:0ms start:32ms)
+2026-01-13 07:14:23.686 [main] INFO  com.socket.edge.SystemBootstrap - Socket initializing..
+2026-01-13 07:14:24.109 [main] INFO  c.s.e.core.socket.NettyServerSocket - fello_server-27000 listening on 27000
+2026-01-13 07:14:24.131 [main] INFO  com.socket.edge.SystemBootstrap - Start httpserver..
+2026-01-13 07:14:24.152 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 1s (retry=1)
+2026-01-13 07:14:24.152 [main] INFO  c.socket.edge.http.NettyHttpServer - Httpserver socket-edge listen on 9001
+2026-01-13 07:14:24.153 [main] INFO  com.socket.edge.SystemBootstrap - Started took 1100ms
+2026-01-13 07:14:25.167 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 2s (retry=2)
+2026-01-13 07:14:27.180 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 4s (retry=3)
+2026-01-13 07:14:31.200 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 8s (retry=4)
+2026-01-13 07:14:39.214 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 16s (retry=5)
+2026-01-13 07:14:55.236 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=6)
+2026-01-13 07:15:25.249 [fello-client-eventloop-4-1] INFO  c.s.e.core.socket.NettyClientSocket - fello-client-127.0.0.1:26000 reconnect to 127.0.0.1:26000 in 30s (retry=7)
+2026-01-13 07:15:29.978 [Thread-0] INFO  com.socket.edge.SystemBootstrap - Shutdown signal received...
+2026-01-13 07:15:29.980 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.14.0 (camel-1) is shutting down (timeout:45s)
+2026-01-13 07:15:33.617 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Routes stopped (total:4)
+2026-01-13 07:15:33.618 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-unknown (seda://unknown)
+2026-01-13 07:15:33.618 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-outbound (seda://outbound)
+2026-01-13 07:15:33.618 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-inbound (seda://inbound)
+2026-01-13 07:15:33.618 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext -     Stopped engine-receive (seda://receive)
+2026-01-13 07:15:33.627 [Thread-0] INFO  o.a.c.i.engine.AbstractCamelContext - Apache Camel 4.14.0 (camel-1) shutdown in 3s646ms (uptime:1m9s)
+2026-01-13 07:15:33.634 [Thread-0] INFO  com.socket.edge.SystemBootstrap - Gracefully shutdown took 3656ms

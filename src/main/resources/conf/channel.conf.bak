@@ -1,0 +1,57 @@
+# TCP Config for fello
+channel {
+    name fello
+    type tcp
+
+    server {
+        listen 127.0.0.1 26000
+        pool ip_fello1
+        pool ip_fello2
+    }
+
+    client {
+        connect ip_apps1 26000 weight 100 priority 1
+        connect ip_apps2 26000 weight 100 priority 0
+        strategy roundrobin
+    }
+
+    profile iso8583
+}
+
+# TCP Config for Alto
+channel {
+    name alto
+    type tcp
+
+    server {
+        listen 127.0.0.1 36000
+        pool ip_apps1 weight 100 priority 1
+        pool ip_apps2 weight 100 priority 1
+        strategy roundrobin
+    }
+
+    client {
+        connect ip_alto 36000
+    }
+
+    profile iso8583
+}
+
+
+profile iso8583 {
+    direction inbound {
+        de1 in ["0800", "0200", "0420", "0421"]
+    }
+
+    direction outbound {
+        de1 in ["0810", "0210", "0430"]
+    }
+
+    correlation {
+        de2
+        de11
+        de37
+        de13
+        de12
+    }
+}

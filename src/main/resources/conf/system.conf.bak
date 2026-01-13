@@ -1,0 +1,22 @@
+# ================= ISO CONFIG =================
+iso.standard=8583
+iso.packager.path=./conf/iso87ascii.xml
+iso.packager.key=de1
+
+# ================= LB GENERAL =================
+lb.cache.type=inmemory
+
+# ================= LB SEDA : RECEIVE =================
+lb.seda.receive.consumers=8
+lb.seda.receive.queue-size=5000
+lb.seda.receive.block-when-full=true
+
+# ================= LB SEDA : INBOUND =================
+lb.seda.inbound.consumers=8
+lb.seda.inbound.queue-size=5000
+lb.seda.inbound.block-when-full=true
+
+# ================= LB SEDA : OUTBOUND =================
+lb.seda.outbound.consumers=8
+lb.seda.outbound.queue-size=5000
+lb.seda.outbound.block-when-full=true
