@@ -1,4 +1,4 @@
-package com.socket.edge.http.service;
+package com.socket.edge.http.service.admin;
 
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;

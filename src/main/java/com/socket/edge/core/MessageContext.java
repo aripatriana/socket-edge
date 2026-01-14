@@ -1,5 +1,6 @@
 package com.socket.edge.core;
 
+import com.socket.edge.http.service.socket.MetricsCounter;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Direction;
@@ -26,6 +27,7 @@ public final class MessageContext {
     private SocketType outboundSocketType;
     private Iso8583Profile profile;
     private Map<String, Object> properties = new ConcurrentHashMap<>();
+    private MetricsCounter metricsCounter;
 
     public MessageContext(Map<String, String> isoFields, byte[] rawBytes) {
         this.isoFields = isoFields;
@@ -142,5 +144,13 @@ public final class MessageContext {
 
     public Object removeProperty(String key) {
         return properties.remove(key);
+    }
+
+    public MetricsCounter getMetricsCounter() {
+        return metricsCounter;
+    }
+
+    public void setMetricsCounter(MetricsCounter metricsCounter) {
+        this.metricsCounter = metricsCounter;
     }
 }

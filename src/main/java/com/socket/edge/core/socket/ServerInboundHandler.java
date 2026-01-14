@@ -2,6 +2,7 @@ package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.http.service.socket.MetricsCounter;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.utils.IsoParser;
 import io.netty.channel.ChannelHandlerContext;
@@ -20,17 +21,20 @@ public final class ServerInboundHandler
     private final NettyServerSocket serverSocket;
     private final IsoParser isoParser;
     private final ForwardService forwardService;
+    private final MetricsCounter metricsCounter;
 
-    public ServerInboundHandler(NettyServerSocket serverSocket, IsoParser isoParser, ForwardService forwardService) {
+    public ServerInboundHandler(NettyServerSocket serverSocket, MetricsCounter metricsCounter, IsoParser isoParser, ForwardService forwardService) {
         this.serverSocket = serverSocket;
         this.isoParser = isoParser;
         this.forwardService = forwardService;
+        this.metricsCounter = metricsCounter;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         super.channelRead(ctx, msg);
         long start = System.currentTimeMillis();
+        metricsCounter.onMessage();
 
         byte[] rawBytes = (byte[]) msg;
 
@@ -46,8 +50,21 @@ public final class ServerInboundHandler
         msgCtx.setInboundSocketType(SocketType.SOCKET_SERVER);
         msgCtx.setOutboundSocketType(SocketType.SOCKET_CLIENT);
         msgCtx.addProperty("received_time", start);
+        msgCtx.setMetricsCounter(metricsCounter);
 
         forwardService.forward(msgCtx);
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        super.channelActive(ctx);
+        metricsCounter.onConnect();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        super.channelInactive(ctx);
+        metricsCounter.onDisconnect();
     }
 
     @Override

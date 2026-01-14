@@ -69,6 +69,11 @@
             <artifactId>config</artifactId>
             <version>1.4.3</version>
         </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <version>1.12.3</version>
+        </dependency>
 
         <!-- ========================= -->
         <!-- JUnit 5 (Jupiter) -->

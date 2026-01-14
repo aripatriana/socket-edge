@@ -1,5 +1,6 @@
-package com.socket.edge.http.service;
+package com.socket.edge.http.service.socket;
 
+import com.socket.edge.http.service.admin.HttpServiceHandler;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -8,29 +9,29 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ValidateConfigHandler implements HttpServiceHandler {
+public class MetricsServiceHandle implements HttpServiceHandler {
 
-    private AdminHttpService service;
-    public ValidateConfigHandler(AdminHttpService service) {
-        this.service = service;
+    private MetricsService metricsService;
+
+    public MetricsServiceHandle(MetricsService metricsService) {
+        this.metricsService = metricsService;
     }
 
     @Override
     public String path() {
-        return "/config/validate";
+        return "/socket/metrics";
     }
 
     @Override
     public FullHttpResponse handle(FullHttpRequest request) {
         Map<String, Object> result = new HashMap<>();
         try {
-            service.validate();
+            result.put("result", metricsService.getAllSnapshot());
             result.put("status", "OK");
         } catch (Exception e) {
             result.put("status", "FAILED");
             result.put("message", e.getMessage());
         }
-
         FullHttpResponse resp = new DefaultFullHttpResponse(
                 HttpVersion.HTTP_1_1,
                 HttpResponseStatus.OK,

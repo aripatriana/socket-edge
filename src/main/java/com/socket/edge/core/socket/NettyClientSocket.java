@@ -1,6 +1,8 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
+import com.socket.edge.http.service.socket.MetricsCounter;
+import com.socket.edge.http.service.socket.MetricsService;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.utils.ByteDecoder;
@@ -39,9 +41,10 @@ public class NettyClientSocket extends AbstractSocket {
     private IsoParser parser;
     private ForwardService forward;
     private SocketChannelPool channelPool;
-    private SocketType socketType = SocketType.SOCKET_CLIENT;
+    private SocketType type = SocketType.SOCKET_CLIENT;
+    private MetricsCounter metricsCounter;
 
-    public NettyClientSocket(String name, SocketEndpoint se, IsoParser parser, ForwardService forward) {
+    public NettyClientSocket(String name, SocketEndpoint se, MetricsService metricService, IsoParser parser, ForwardService forward) {
         super(String.format("%s-client-%s:%d",name, se.host(),se.port()), name);
         this.host = se.host();
         this.port = se.port();
@@ -59,7 +62,8 @@ public class NettyClientSocket extends AbstractSocket {
         );
         this.parser = parser;
         this.forward = forward;
-        this.channelPool = new SocketChannelPool(getId(), socketType, Collections.singletonList(se));
+        this.channelPool = new SocketChannelPool(getId(), type, Collections.singletonList(se));
+        this.metricsCounter = metricService.register(getId(), name, type.name());
     }
 
     @Override
@@ -76,17 +80,25 @@ public class NettyClientSocket extends AbstractSocket {
                         ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                         ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0,2, 0, 2));
                         ch.pipeline().addLast(new ByteDecoder());
-                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, parser, forward));
+                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, metricsCounter, parser, forward));
                         ch.pipeline().addLast(new ByteEncoder());
                         ch.pipeline().addLast(new LengthFieldPrepender(2));
                     }
                 });
 
         connect();
+        startTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public SocketType getType() {
+        return type;
     }
 
     @Override
     public void stop() {
+        startTime = 0;
+
         if (channel != null) {
             channel.close();
             channel = null;

@@ -38,7 +38,6 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
         InetSocketAddress local =
                 (InetSocketAddress) ch.localAddress();
         if (channelPool.register(ch)) {
-
             log.info(
                     "CHANNEL ACTIVE | id={} | remote={}:{} | local={}:{} | thread={}",
                     ch.id().asShortText(),

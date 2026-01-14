@@ -53,8 +53,8 @@ public class SEEngine extends RouteBuilder {
 
                     MessageContext ctx =
                             e.getIn().getBody(MessageContext.class);
+                    ctx.getMetricsCounter().onError();
 
-                    // logging aman
                     if (ctx != null) {
                         log.error(
                                 "[ERROR] corrKey=" + ctx.getCorrelationKey()
@@ -157,7 +157,11 @@ public class SEEngine extends RouteBuilder {
                     }
 
                     transport.send(ctx);
-                    log.info("took time {}ms", (System.currentTimeMillis()-(long)ctx.getProperty("received_time")));
+
+                    long latencyMs = (System.currentTimeMillis()-(long)ctx.getProperty("received_time"));
+                    ctx.getMetricsCounter().onComplete(latencyMs);
+
+                    log.info("Sent took time {}ms", latencyMs);
                 });
 
         from("seda:outbound?concurrentConsumers=" + cu.getInt("engine.seda.outbound.consumers", 8)
@@ -179,8 +183,12 @@ public class SEEngine extends RouteBuilder {
                         }
 
                         inbound.writeAndFlush(Unpooled.wrappedBuffer(ctx.getRawBytes()));
+
+                        long latencyMs = (System.currentTimeMillis()-(long)ctx.getProperty("received_time"));
+                        ctx.getMetricsCounter().onComplete(latencyMs);
+
                         log.info("Send response " + new String(ctx.getRawBytes()));
-                        log.info("took time {}ms", (System.currentTimeMillis()-(long)ctx.getProperty("received_time")));
+                        log.info("Sent took time {}ms", latencyMs);
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());
                         LoadAware loadAware = (LoadAware) ctx.getProperty("back_forward_channel");

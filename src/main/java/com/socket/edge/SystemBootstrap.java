@@ -17,15 +17,24 @@ import com.socket.edge.core.strategy.SelectionStrategy;
 import com.socket.edge.core.transport.ClientTransport;
 import com.socket.edge.core.transport.ServerTransport;
 import com.socket.edge.core.transport.TransportProvider;
-import com.socket.edge.http.service.*;
+import com.socket.edge.http.service.admin.AdminHttpService;
+import com.socket.edge.http.service.admin.HttpServiceHandler;
+import com.socket.edge.http.service.admin.ReloadConfigHandler;
+import com.socket.edge.http.service.admin.ValidateConfigHandler;
+import com.socket.edge.http.service.socket.MetricsService;
+import com.socket.edge.http.service.socket.MetricsServiceHandle;
+import com.socket.edge.http.service.socket.SocketStatusHandler;
+import com.socket.edge.http.service.socket.SocketStatusService;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.http.NettyHttpServer;
+import com.socket.edge.utils.ConfigUtil;
 import com.socket.edge.utils.IsoParser;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.camel.CamelContext;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.jpos.iso.ISOException;
@@ -40,6 +49,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SystemBootstrap {
 
@@ -55,8 +66,10 @@ public class SystemBootstrap {
     private CamelContext camelContext;
     private Metadata metadata;
     private NettyHttpServer httpServer;
-    private final List<AbstractSocket> sockets = new ArrayList<>();
+    private final Map<String, AbstractSocket> sockets = new ConcurrentHashMap<>();
     public static Config sc;
+    private ConfigUtil cu = new ConfigUtil();
+    private MetricsService metricsService;
 
     static {
         Path configPath = Path.of(
@@ -82,9 +95,10 @@ public class SystemBootstrap {
         log.info("System initializing..");
         profileProcessor = new Iso8583ProfileResolver();
         transportProvider = new TransportProvider();
-        correlationStore = new CacheCorrelationStore(30000);
+        correlationStore = new CacheCorrelationStore(cu.getInt("engine.cache.ttl", 30000));
         channelCfgProcessor = new ChannelCfgProcessor();
         channelCfgSelector = new ChannelCfgSelector();
+        metricsService = new MetricsService(new SimpleMeterRegistry());
     }
 
     public void loadConfiguration() throws IOException {
@@ -131,12 +145,14 @@ public class SystemBootstrap {
                                 cfg.name(),
                                 cfg.server().listenPort(),
                                 cfg.server().pool(),
+                                metricsService,
                                 parser,
                                 forward
                         );
 
+
                 serverSocket.start();
-                sockets.add(serverSocket);
+                sockets.put(serverSocket.getId(), serverSocket);
 
                 SelectionStrategy<SocketChannel> strategy =
                         SelectionFactory.create(cfg.client().strategy());
@@ -156,12 +172,13 @@ public class SystemBootstrap {
                             new NettyClientSocket(
                                     cfg.name(),
                                     se,
+                                    metricsService,
                                     parser,
                                     forward
                             );
 
                     clientSocket.start();
-                    sockets.add(clientSocket);
+                    sockets.put(clientSocket.getId(), clientSocket);
 
                     clientSockets.add(clientSocket);
                 }
@@ -180,11 +197,14 @@ public class SystemBootstrap {
     public void handleHttpServer() throws InterruptedException {
         log.info("Start httpserver..");
         AdminHttpService adminHttpService = new AdminHttpService();
-        SocketInfoService socketInfoService = new SocketInfoService(sockets);
+        SocketStatusService socketStatusService = new SocketStatusService(sockets.values()
+                .stream()
+                .toList());
         List<HttpServiceHandler> services = List.of(
-                new SocketInfoHandler(socketInfoService),
+                new SocketStatusHandler(socketStatusService),
                 new ValidateConfigHandler(adminHttpService),
-                new ReloadConfigHandler(adminHttpService)
+                new ReloadConfigHandler(adminHttpService),
+                new MetricsServiceHandle((metricsService))
         );
 
         httpServer = new NettyHttpServer(
@@ -211,7 +231,7 @@ public class SystemBootstrap {
                 log.error("{}", e.getCause());
             }
 
-            for (AutoCloseable c : sockets) {
+            for (AutoCloseable c : sockets.values()) {
                 try {
                     c.close();
                 } catch (Exception ignored) {
