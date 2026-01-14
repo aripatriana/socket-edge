@@ -31,11 +31,9 @@ fi
 
 echo "Starting socket-edge..."
 
-java "${JAVA_OPTS[@]}" \
-  -cp "$CLASSPATH" \
-  com.socket.edge.SystemBootstrap &
+java "${JAVA_OPTS[@]}" -cp "$CLASSPATH" com.socket.edge.SystemBootstrap > /dev/null 2>&1 &
+
 
 APP_PID=$!
 echo $APP_PID > "$PID_FILE"
-
 echo "Started with PID $APP_PID"
