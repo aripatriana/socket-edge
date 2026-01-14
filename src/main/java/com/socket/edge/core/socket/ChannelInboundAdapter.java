@@ -27,6 +27,7 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        super.channelActive(ctx);
         Channel ch = ctx.channel();
         ChannelFuture channelFuture = ch.closeFuture();
         if(!channelFuture.channel().isActive()){
@@ -62,6 +63,7 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        super.channelInactive(ctx);
         Channel ch = ctx.channel();
         channelPool.unregister(ch);
 

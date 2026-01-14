@@ -1,9 +1,10 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
-import com.socket.edge.http.service.socket.MetricsCounter;
-import com.socket.edge.http.service.socket.MetricsService;
+import com.socket.edge.core.SocketTelemetry;
+import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
+import com.socket.edge.model.SocketState;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
@@ -42,10 +43,10 @@ public class NettyClientSocket extends AbstractSocket {
     private ForwardService forward;
     private SocketChannelPool channelPool;
     private SocketType type = SocketType.SOCKET_CLIENT;
-    private MetricsCounter metricsCounter;
+    private SocketTelemetry socketTelemetry;
 
-    public NettyClientSocket(String name, SocketEndpoint se, MetricsService metricService, IsoParser parser, ForwardService forward) {
-        super(String.format("%s-client-%s:%d",name, se.host(),se.port()), name);
+    public NettyClientSocket(String name, SocketEndpoint se, TelemetryRegistry metricService, IsoParser parser, ForwardService forward) {
+        super(String.format("%s-client-%s-%d",name, se.host(),se.port()), name);
         this.host = se.host();
         this.port = se.port();
         this.group = new NioEventLoopGroup(
@@ -63,7 +64,7 @@ public class NettyClientSocket extends AbstractSocket {
         this.parser = parser;
         this.forward = forward;
         this.channelPool = new SocketChannelPool(getId(), type, Collections.singletonList(se));
-        this.metricsCounter = metricService.register(getId(), name, type.name());
+        this.socketTelemetry = metricService.register(this);
     }
 
     @Override
@@ -80,7 +81,7 @@ public class NettyClientSocket extends AbstractSocket {
                         ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                         ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0,2, 0, 2));
                         ch.pipeline().addLast(new ByteDecoder());
-                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, metricsCounter, parser, forward));
+                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, socketTelemetry, parser, forward));
                         ch.pipeline().addLast(new ByteEncoder());
                         ch.pipeline().addLast(new LengthFieldPrepender(2));
                     }
@@ -135,8 +136,8 @@ public class NettyClientSocket extends AbstractSocket {
     }
 
     @Override
-    public boolean isUp() {
-        return channel != null && channel.isActive();
+    public SocketState getState() {
+        return channel != null && channel.isActive() ? SocketState.UP : SocketState.DOWN;
     }
 
     @Override

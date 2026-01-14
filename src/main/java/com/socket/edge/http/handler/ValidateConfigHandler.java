@@ -1,5 +1,6 @@
-package com.socket.edge.http.service.admin;
+package com.socket.edge.http.handler;
 
+import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;

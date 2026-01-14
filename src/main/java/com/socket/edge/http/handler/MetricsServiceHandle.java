@@ -1,5 +1,6 @@
-package com.socket.edge.http.service.admin;
+package com.socket.edge.http.handler;
 
+import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -8,23 +9,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ReloadConfigHandler implements HttpServiceHandler {
+public class MetricsServiceHandle implements HttpServiceHandler {
 
-    private AdminHttpService service;
-    public ReloadConfigHandler(AdminHttpService service) {
-        this.service = service;
+    private TelemetryRegistry telemetryRegistry;
+
+    public MetricsServiceHandle(TelemetryRegistry telemetryRegistry) {
+        this.telemetryRegistry = telemetryRegistry;
     }
 
     @Override
     public String path() {
-        return "/config/reload";
+        return "/socket/metrics";
     }
 
     @Override
     public FullHttpResponse handle(FullHttpRequest request) {
         Map<String, Object> result = new HashMap<>();
         try {
-            service.reload();
+            result.put("result", telemetryRegistry.getAllMetrics());
             result.put("status", "OK");
         } catch (Exception e) {
             result.put("status", "FAILED");

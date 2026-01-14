@@ -1,5 +1,6 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.model.SocketState;
 import com.socket.edge.model.SocketType;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,8 +26,8 @@ public abstract class AbstractSocket implements AutoCloseable {
 
     public abstract SocketType getType();
 
-    public long getUptime() {
-        return startTime > 0 ? (System.currentTimeMillis() - startTime): 0;
+    public long getStartTime() {
+        return startTime;
     }
 
     /*
@@ -39,7 +40,7 @@ public abstract class AbstractSocket implements AutoCloseable {
      */
     public abstract void stop();
 
-    public abstract boolean isUp();
+    public abstract SocketState getState();
 
     public abstract SocketChannelPool channelPool();
 

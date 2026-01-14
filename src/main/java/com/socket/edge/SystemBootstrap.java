@@ -17,14 +17,13 @@ import com.socket.edge.core.strategy.SelectionStrategy;
 import com.socket.edge.core.transport.ClientTransport;
 import com.socket.edge.core.transport.ServerTransport;
 import com.socket.edge.core.transport.TransportProvider;
-import com.socket.edge.http.service.admin.AdminHttpService;
-import com.socket.edge.http.service.admin.HttpServiceHandler;
-import com.socket.edge.http.service.admin.ReloadConfigHandler;
-import com.socket.edge.http.service.admin.ValidateConfigHandler;
-import com.socket.edge.http.service.socket.MetricsService;
-import com.socket.edge.http.service.socket.MetricsServiceHandle;
-import com.socket.edge.http.service.socket.SocketStatusHandler;
-import com.socket.edge.http.service.socket.SocketStatusService;
+import com.socket.edge.http.service.AdminHttpService;
+import com.socket.edge.http.handler.HttpServiceHandler;
+import com.socket.edge.http.handler.ReloadConfigHandler;
+import com.socket.edge.http.handler.ValidateConfigHandler;
+import com.socket.edge.core.TelemetryRegistry;
+import com.socket.edge.http.handler.MetricsServiceHandle;
+import com.socket.edge.http.handler.SocketStatusHandler;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.model.SocketType;
@@ -69,7 +68,7 @@ public class SystemBootstrap {
     private final Map<String, AbstractSocket> sockets = new ConcurrentHashMap<>();
     public static Config sc;
     private ConfigUtil cu = new ConfigUtil();
-    private MetricsService metricsService;
+    private TelemetryRegistry telemetryRegistry;
 
     static {
         Path configPath = Path.of(
@@ -98,7 +97,7 @@ public class SystemBootstrap {
         correlationStore = new CacheCorrelationStore(cu.getInt("engine.cache.ttl", 30000));
         channelCfgProcessor = new ChannelCfgProcessor();
         channelCfgSelector = new ChannelCfgSelector();
-        metricsService = new MetricsService(new SimpleMeterRegistry());
+        telemetryRegistry = new TelemetryRegistry(new SimpleMeterRegistry());
     }
 
     public void loadConfiguration() throws IOException {
@@ -145,7 +144,7 @@ public class SystemBootstrap {
                                 cfg.name(),
                                 cfg.server().listenPort(),
                                 cfg.server().pool(),
-                                metricsService,
+                                telemetryRegistry,
                                 parser,
                                 forward
                         );
@@ -172,7 +171,7 @@ public class SystemBootstrap {
                             new NettyClientSocket(
                                     cfg.name(),
                                     se,
-                                    metricsService,
+                                    telemetryRegistry,
                                     parser,
                                     forward
                             );
@@ -197,14 +196,11 @@ public class SystemBootstrap {
     public void handleHttpServer() throws InterruptedException {
         log.info("Start httpserver..");
         AdminHttpService adminHttpService = new AdminHttpService();
-        SocketStatusService socketStatusService = new SocketStatusService(sockets.values()
-                .stream()
-                .toList());
         List<HttpServiceHandler> services = List.of(
-                new SocketStatusHandler(socketStatusService),
+                new SocketStatusHandler(telemetryRegistry),
                 new ValidateConfigHandler(adminHttpService),
                 new ReloadConfigHandler(adminHttpService),
-                new MetricsServiceHandle((metricsService))
+                new MetricsServiceHandle((telemetryRegistry))
         );
 
         httpServer = new NettyHttpServer(

@@ -1,6 +1,6 @@
 package com.socket.edge.http;
 
-import com.socket.edge.http.service.admin.HttpServiceHandler;
+import com.socket.edge.http.handler.HttpServiceHandler;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;

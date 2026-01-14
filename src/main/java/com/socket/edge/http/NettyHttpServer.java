@@ -1,6 +1,6 @@
 package com.socket.edge.http;
 
-import com.socket.edge.http.service.admin.HttpServiceHandler;
+import com.socket.edge.http.handler.HttpServiceHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;

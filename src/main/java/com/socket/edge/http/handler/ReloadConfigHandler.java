@@ -1,6 +1,6 @@
-package com.socket.edge.http.service.socket;
+package com.socket.edge.http.handler;
 
-import com.socket.edge.http.service.admin.HttpServiceHandler;
+import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -9,33 +9,28 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SocketStatusHandler implements HttpServiceHandler {
+public class ReloadConfigHandler implements HttpServiceHandler {
 
-    private SocketStatusService service;
-    public SocketStatusHandler(SocketStatusService service) {
+    private AdminHttpService service;
+    public ReloadConfigHandler(AdminHttpService service) {
         this.service = service;
     }
 
     @Override
     public String path() {
-        return "/socket/status";
+        return "/config/reload";
     }
 
     @Override
-    public FullHttpResponse handle(FullHttpRequest req) {
+    public FullHttpResponse handle(FullHttpRequest request) {
         Map<String, Object> result = new HashMap<>();
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("uptime", (service.uptime()/1000)+"s");
-            data.put("socketStatus", service.getSocketStatus());
-
+            service.reload();
             result.put("status", "OK");
-            result.put("result", data);
         } catch (Exception e) {
             result.put("status", "FAILED");
             result.put("message", e.getMessage());
         }
-
         FullHttpResponse resp = new DefaultFullHttpResponse(
                 HttpVersion.HTTP_1_1,
                 HttpResponseStatus.OK,

@@ -1,6 +1,6 @@
-package com.socket.edge.http.service.socket;
+package com.socket.edge.http.handler;
 
-import com.socket.edge.http.service.admin.HttpServiceHandler;
+import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -9,29 +9,32 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MetricsServiceHandle implements HttpServiceHandler {
+public class SocketStatusHandler implements HttpServiceHandler {
 
-    private MetricsService metricsService;
-
-    public MetricsServiceHandle(MetricsService metricsService) {
-        this.metricsService = metricsService;
+    private TelemetryRegistry telemetryRegistry;
+    public SocketStatusHandler(TelemetryRegistry telemetryRegistry) {
+        this.telemetryRegistry = telemetryRegistry;
     }
 
     @Override
     public String path() {
-        return "/socket/metrics";
+        return "/socket/status";
     }
 
     @Override
-    public FullHttpResponse handle(FullHttpRequest request) {
+    public FullHttpResponse handle(FullHttpRequest req) {
         Map<String, Object> result = new HashMap<>();
         try {
-            result.put("result", metricsService.getAllSnapshot());
+            Map<String, Object> data = new HashMap<>();
+            data.put("socketStatus", telemetryRegistry.getAllRuntimeState());
+
             result.put("status", "OK");
+            result.put("result", data);
         } catch (Exception e) {
             result.put("status", "FAILED");
             result.put("message", e.getMessage());
         }
+
         FullHttpResponse resp = new DefaultFullHttpResponse(
                 HttpVersion.HTTP_1_1,
                 HttpResponseStatus.OK,

@@ -1,4 +1,4 @@
-package com.socket.edge.http.service.admin;
+package com.socket.edge.http.service;
 
 public class AdminHttpService {
 

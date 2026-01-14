@@ -4,6 +4,7 @@ import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.NettyClientSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.strategy.SelectionStrategy;
+import com.socket.edge.model.SocketState;
 
 import java.util.List;
 import java.util.Objects;
@@ -45,6 +46,7 @@ public final class ClientTransport implements Transport {
 
     @Override
     public boolean isUp() {
-        return sockets.stream().anyMatch(NettyClientSocket::isUp);
+        return sockets.stream()
+                .anyMatch(socket -> socket.getState() == SocketState.UP);
     }
 }

@@ -1,9 +1,10 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
-import com.socket.edge.http.service.socket.MetricsCounter;
-import com.socket.edge.http.service.socket.MetricsService;
+import com.socket.edge.core.SocketTelemetry;
+import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
+import com.socket.edge.model.SocketState;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
@@ -34,15 +35,15 @@ public class NettyServerSocket extends AbstractSocket {
     private ForwardService forward;
     private SocketChannelPool channelPool;
     private SocketType type = SocketType.SOCKET_SERVER;
-    private MetricsCounter counter;
+    private SocketTelemetry counter;
 
-    public NettyServerSocket(String name, int port, List<SocketEndpoint> allowlist, MetricsService metrics, IsoParser parser, ForwardService forward) {
-        super(String.format("%s_server-%d",name, port), name);
+    public NettyServerSocket(String name, int port, List<SocketEndpoint> allowlist, TelemetryRegistry metrics, IsoParser parser, ForwardService forward) {
+        super(String.format("%s-server-%d",name, port), name);
         this.port = port;
         this.parser = parser;
         this.forward = forward;
         this.channelPool = new SocketChannelPool(getId(), type, allowlist);
-        this.counter = metrics.register(getId(), name, type.name());
+        this.counter = metrics.register(this);
     }
 
     @Override
@@ -116,7 +117,7 @@ public class NettyServerSocket extends AbstractSocket {
     }
 
     @Override
-    public boolean isUp() {
-        return serverChannel != null && serverChannel.isActive();
+    public SocketState getState() {
+        return serverChannel != null && serverChannel.isActive() ? SocketState.UP : SocketState.DOWN;
     }
 }
