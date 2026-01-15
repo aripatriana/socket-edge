@@ -38,7 +38,7 @@ public abstract class AbstractSocket implements AutoCloseable {
     /*
      * stop the socket
      */
-    public abstract void stop();
+    public abstract void stop() throws InterruptedException;
 
     public abstract SocketState getState();
 

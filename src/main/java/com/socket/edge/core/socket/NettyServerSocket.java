@@ -48,6 +48,8 @@ public class NettyServerSocket extends AbstractSocket {
 
     @Override
     public void start() throws InterruptedException {
+        log.info("Start socket server id={}", getId());
+
         boss = new NioEventLoopGroup(
                 1,
                 new DefaultThreadFactory(

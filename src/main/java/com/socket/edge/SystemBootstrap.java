@@ -149,8 +149,6 @@ public class SystemBootstrap {
                                 forward
                         );
 
-
-                serverSocket.start();
                 sockets.put(serverSocket.getId(), serverSocket);
 
                 SelectionStrategy<SocketChannel> strategy =
@@ -176,9 +174,7 @@ public class SystemBootstrap {
                                     forward
                             );
 
-                    clientSocket.start();
                     sockets.put(clientSocket.getId(), clientSocket);
-
                     clientSockets.add(clientSocket);
                 }
 
@@ -190,12 +186,22 @@ public class SystemBootstrap {
                         new ClientTransport(clientSockets, strategy)
                 );
             }
+
+            if (sockets.size() > 0) {
+                sockets.values().forEach(s -> {
+                    try {
+                        s.start();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
         }
     }
 
     public void handleHttpServer() throws InterruptedException {
         log.info("Start httpserver..");
-        AdminHttpService adminHttpService = new AdminHttpService();
+        AdminHttpService adminHttpService = new AdminHttpService(sockets);
         List<HttpServiceHandler> services = List.of(
                 new SocketStatusHandler(telemetryRegistry),
                 new ValidateConfigHandler(adminHttpService),

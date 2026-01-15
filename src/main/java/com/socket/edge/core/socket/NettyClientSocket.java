@@ -69,6 +69,7 @@ public class NettyClientSocket extends AbstractSocket {
 
     @Override
     public void start() {
+        log.info("Start socket client id={}", getId());
         running = true;
 
         bootstrap = new Bootstrap()
