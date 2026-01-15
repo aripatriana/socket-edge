@@ -37,17 +37,6 @@ public class SocketChannelPool {
                 ((InetSocketAddress) ch.remoteAddress())
                         .getPort();
 
-
-        if (socketType.equals(SocketType.SOCKET_SERVER)) {
-
-        } else if (socketType.equals(SocketType.SOCKET_CLIENT)) {
-            allowlist.stream()
-                    .noneMatch(ep ->
-                            remoteIp.equals(ep.host())
-                                    && remotePort == ep.port()
-                    );
-        }
-
         SocketEndpoint se =
                 socketType.equals(SocketType.SOCKET_SERVER)
                         ? allowlist.stream()
