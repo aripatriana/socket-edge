@@ -145,6 +145,7 @@ public class SystemBootstrap {
                                 forward
                         );
 
+                serverSocket.start();
                 sockets.put(serverSocket.getId(), serverSocket);
 
                 SelectionStrategy<SocketChannel> strategy =
@@ -170,6 +171,8 @@ public class SystemBootstrap {
                                     forward
                             );
 
+                    clientSocket.start();
+
                     sockets.put(clientSocket.getId(), clientSocket);
                     clientSockets.add(clientSocket);
                 }
@@ -181,16 +184,6 @@ public class SystemBootstrap {
                         SocketType.SOCKET_CLIENT.name() + "|" + cfg.name(),
                         new ClientTransport(clientSockets, strategy)
                 );
-            }
-
-            if (sockets.size() > 0) {
-                sockets.values().forEach(s -> {
-                    try {
-                        s.start();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
             }
         }
     }

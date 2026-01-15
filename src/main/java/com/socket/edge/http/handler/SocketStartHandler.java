@@ -19,7 +19,7 @@ public class SocketStartHandler implements HttpServiceHandler {
 
     @Override
     public String path() {
-        return "/socket/status";
+        return "/socket/start";
     }
 
     @Override

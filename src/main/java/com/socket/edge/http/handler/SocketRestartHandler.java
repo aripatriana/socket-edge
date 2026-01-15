@@ -20,7 +20,7 @@ public class SocketRestartHandler implements HttpServiceHandler {
 
     @Override
     public String path() {
-        return "/socket/status";
+        return "/socket/restart";
     }
 
     @Override
