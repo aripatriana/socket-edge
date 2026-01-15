@@ -1,6 +1,5 @@
 package com.socket.edge.http.service;
 
-import com.socket.edge.core.engine.SEEngine;
 import com.socket.edge.core.socket.AbstractSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

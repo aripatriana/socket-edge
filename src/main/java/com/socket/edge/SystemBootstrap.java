@@ -17,13 +17,9 @@ import com.socket.edge.core.strategy.SelectionStrategy;
 import com.socket.edge.core.transport.ClientTransport;
 import com.socket.edge.core.transport.ServerTransport;
 import com.socket.edge.core.transport.TransportProvider;
+import com.socket.edge.http.handler.*;
 import com.socket.edge.http.service.AdminHttpService;
-import com.socket.edge.http.handler.HttpServiceHandler;
-import com.socket.edge.http.handler.ReloadConfigHandler;
-import com.socket.edge.http.handler.ValidateConfigHandler;
 import com.socket.edge.core.TelemetryRegistry;
-import com.socket.edge.http.handler.MetricsServiceHandle;
-import com.socket.edge.http.handler.SocketStatusHandler;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.model.SocketType;
@@ -206,7 +202,10 @@ public class SystemBootstrap {
                 new SocketStatusHandler(telemetryRegistry),
                 new ValidateConfigHandler(adminHttpService),
                 new ReloadConfigHandler(adminHttpService),
-                new MetricsServiceHandle((telemetryRegistry))
+                new MetricsServiceHandle((telemetryRegistry)),
+                new SocketStartHandler(adminHttpService),
+                new SocketStopHandler(adminHttpService),
+                new SocketRestartHandler(adminHttpService)
         );
 
         httpServer = new NettyHttpServer(
