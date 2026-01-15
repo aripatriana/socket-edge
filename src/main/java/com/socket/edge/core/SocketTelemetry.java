@@ -10,6 +10,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import io.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -20,6 +22,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 public class SocketTelemetry {
+
+    private static final Logger log = LoggerFactory.getLogger(SocketTelemetry.class);
 
     private String id;
     private String name;
@@ -110,6 +114,8 @@ public class SocketTelemetry {
         latency.record(latencyNs, TimeUnit.NANOSECONDS);
         minLatency.accumulateAndGet(latencyNs, Math::min);
         maxLatency.accumulateAndGet(latencyNs, Math::max);
+
+        log.info("Complete took time {}ms", latencyNs);
     }
 
     public void onError() {

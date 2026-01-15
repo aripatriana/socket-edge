@@ -1,5 +1,7 @@
 package com.socket.edge.core.cache;
 
+import com.socket.edge.model.ReplyInbound;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -7,10 +9,10 @@ import java.util.concurrent.TimeUnit;
 public class CacheCorrelationStore implements CorrelationStore {
 
     private static class Entry {
-        final io.netty.channel.Channel channel;
+        final ReplyInbound channel;
         final long expireAt;
 
-        Entry(io.netty.channel.Channel ch, long ttlMs) {
+        Entry(ReplyInbound ch, long ttlMs) {
             this.channel = ch;
             this.expireAt = System.currentTimeMillis() + ttlMs;
         }
@@ -26,12 +28,12 @@ public class CacheCorrelationStore implements CorrelationStore {
     }
 
     @Override
-    public void put(String key, io.netty.channel.Channel inbound) {
+    public void put(String key, ReplyInbound inbound) {
         store.put(key, new Entry(inbound, ttlMs));
     }
 
     @Override
-    public io.netty.channel.Channel get(String key) {
+    public ReplyInbound get(String key) {
         Entry e = store.get(key);
         if (e == null) return null;
 

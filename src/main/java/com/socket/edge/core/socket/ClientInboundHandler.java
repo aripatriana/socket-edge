@@ -45,12 +45,13 @@ public final class ClientInboundHandler
         msgCtx.setSocketId(clientSocket.getId());
         msgCtx.setChannelName(clientSocket.getName());
         msgCtx.setChannel(ctx.channel());
+        msgCtx.setSocketChannel(clientSocket.channelPool().get(ctx.channel()));
         msgCtx.setLocalAddress((InetSocketAddress) ctx.channel().localAddress());
         msgCtx.setRemoteAddress((InetSocketAddress) ctx.channel().remoteAddress());
         msgCtx.setInboundSocketType(SocketType.SOCKET_CLIENT);
         msgCtx.setOutboundSocketType(SocketType.SOCKET_SERVER);
         msgCtx.addProperty("received_time", start);
-        msgCtx.setMetricsCounter(socketTelemetry);
+        msgCtx.setSocketTelemetry(socketTelemetry);
 
         forwardService.forward(msgCtx);
     }

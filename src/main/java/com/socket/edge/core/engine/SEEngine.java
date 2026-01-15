@@ -5,25 +5,26 @@ import com.socket.edge.core.iso.Iso8583ProfileResolver;
 import com.socket.edge.core.LoadAware;
 import com.socket.edge.core.cache.CorrelationStore;
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.core.socket.AbstractSocket;
+import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.transport.Transport;
 import com.socket.edge.core.transport.TransportProvider;
-import com.socket.edge.model.ChannelCfg;
-import com.socket.edge.model.Metadata;
-import com.socket.edge.model.Direction;
-import com.socket.edge.model.Iso8583Profile;
+import com.socket.edge.model.*;
 import com.socket.edge.utils.ConfigUtil;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Map;
 
 
 public class SEEngine extends RouteBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(SEEngine.class);
 
+    private Map<String, AbstractSocket> sockets;
     private Metadata metadata;
     private Iso8583ProfileResolver profileProcessor;
     private ChannelCfgSelector channelCfgSelector;
@@ -31,9 +32,10 @@ public class SEEngine extends RouteBuilder {
     private TransportProvider transportProvider;
     private ConfigUtil cu = new ConfigUtil();
 
-    public SEEngine(Metadata metadata, Iso8583ProfileResolver profileProcessor,
+    public SEEngine(Map<String, AbstractSocket> sockets, Metadata metadata, Iso8583ProfileResolver profileProcessor,
                     ChannelCfgSelector channelCfgSelector, CorrelationStore correlationStore,
                     TransportProvider transportProvider) {
+        this.sockets = sockets;
         this.metadata = metadata;
         this.profileProcessor = profileProcessor;
         this.channelCfgSelector = channelCfgSelector;
@@ -53,7 +55,7 @@ public class SEEngine extends RouteBuilder {
 
                     MessageContext ctx =
                             e.getIn().getBody(MessageContext.class);
-                    ctx.getMetricsCounter().onError();
+                    ctx.getSocketTelemetry().onError();
 
                     if (ctx != null) {
                         log.error(
@@ -143,7 +145,7 @@ public class SEEngine extends RouteBuilder {
 
                     correlationStore.put(
                             ctx.getCorrelationKey(),
-                            ctx.getChannel()
+                            new ReplyInbound(ctx.getCorrelationKey(), ctx.getSocketId(), ctx.getSocketChannel())
                     );
                 })
                 .process(e -> {
@@ -158,10 +160,8 @@ public class SEEngine extends RouteBuilder {
 
                     transport.send(ctx);
 
-                    long latencyMs = (System.nanoTime()-(long)ctx.getProperty("received_time"));
-                    ctx.getMetricsCounter().onComplete(latencyMs);
-
-                    log.info("Sent took time {}ms", latencyMs);
+                    long latencyNs = (System.nanoTime()-(long)ctx.getProperty("received_time"));
+                    ctx.getSocketTelemetry().onComplete(latencyNs);
                 });
 
         from("seda:outbound?concurrentConsumers=" + cu.getInt("engine.seda.outbound.consumers", 8)
@@ -172,23 +172,39 @@ public class SEEngine extends RouteBuilder {
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
                     try {
-                        Channel inbound =
+                        ReplyInbound inbound =
                                 correlationStore.get(ctx.getCorrelationKey());
-
-                        if (inbound == null || !inbound.isActive()) {
+                        if (inbound == null) {
                             throw new IllegalStateException(
                                     "No inbound channel for correlation="
                                             + ctx.getCorrelationKey()
                             );
                         }
 
-                        inbound.writeAndFlush(Unpooled.wrappedBuffer(ctx.getRawBytes()));
-
+                        SocketChannel channel = inbound.socketChannel();
+                        if (channel != null) {
+                            if (!channel.isActive()) {
+                                throw new IllegalStateException(
+                                        "No channel active for correlation="
+                                                + ctx.getCorrelationKey()
+                                );
+                            }
+                            channel.send(ctx.getRawBytes());
+                        } else {
+                            AbstractSocket socket = sockets.get(inbound.socketId());
+                            List<SocketChannel> candidate = socket.channelPool().activeChannels();
+                            if (candidate != null && candidate.size() > 0) {
+                                channel = candidate.get(0);
+                                channel.send(ctx.getRawBytes());
+                            } else {
+                                throw new IllegalStateException(
+                                        "No channel active for correlation="
+                                                + ctx.getCorrelationKey()
+                                );
+                            }
+                        }
                         long latencyMs = (System.nanoTime()-(long)ctx.getProperty("received_time"));
-                        ctx.getMetricsCounter().onComplete(latencyMs);
-
-                        log.info("Send response " + new String(ctx.getRawBytes()));
-                        log.info("Sent took time {}ms", latencyMs);
+                        ctx.getSocketTelemetry().onComplete(latencyMs);
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());
                         LoadAware loadAware = (LoadAware) ctx.getProperty("back_forward_channel");

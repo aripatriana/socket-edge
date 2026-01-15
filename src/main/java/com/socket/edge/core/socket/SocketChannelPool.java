@@ -3,16 +3,19 @@ package com.socket.edge.core.socket;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.model.SocketType;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelId;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SocketChannelPool {
 
     String socketId;
     SocketType socketType;
-    List<SocketChannel> activeChannels = new ArrayList<>();
+    Map<ChannelId, SocketChannel> activeChannels = new HashMap<>();
     List<SocketEndpoint> allowlist = new ArrayList<>();
 
     public SocketChannelPool(String socketId, SocketType socketType, List<SocketEndpoint> allowlist) {
@@ -50,16 +53,20 @@ public class SocketChannelPool {
                         .findFirst()
                         .orElse(null);
 
-        activeChannels.add(new SocketChannel(socketId, ch, se));
+        activeChannels.putIfAbsent(ch.id(), new SocketChannel(socketId, ch, se));
         return true;
     }
 
     public void unregister(Channel ch) {
-        activeChannels.removeIf(ctx -> ctx.channel() == ch);
+        activeChannels.remove(ch.id());
+    }
+
+    public SocketChannel get(Channel ch) {
+        return activeChannels.get(ch.id());
     }
 
     public List<SocketChannel> activeChannels() {
-        return activeChannels.stream()
+        return activeChannels.values().stream()
                 .filter(SocketChannel::isActive)
                 .toList();
     }

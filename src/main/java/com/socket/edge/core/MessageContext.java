@@ -1,5 +1,6 @@
 package com.socket.edge.core;
 
+import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.model.SocketType;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Direction;
@@ -18,6 +19,7 @@ public final class MessageContext {
     private Direction direction;
     private ChannelCfg channelCfg;
     private io.netty.channel.Channel channel;
+    private SocketChannel socketChannel;
     private String correlationKey;
     private byte[] rawBytes;
     private InetSocketAddress localAddress;
@@ -75,6 +77,14 @@ public final class MessageContext {
 
     public void setChannel(Channel channel) {
         this.channel = channel;
+    }
+
+    public SocketChannel getSocketChannel() {
+        return socketChannel;
+    }
+
+    public void setSocketChannel(SocketChannel socketChannel) {
+        this.socketChannel = socketChannel;
     }
 
     public ChannelCfg getChannelCfg() {
@@ -145,11 +155,11 @@ public final class MessageContext {
         return properties.remove(key);
     }
 
-    public SocketTelemetry getMetricsCounter() {
+    public SocketTelemetry getSocketTelemetry() {
         return socketTelemetry;
     }
 
-    public void setMetricsCounter(SocketTelemetry socketTelemetry) {
+    public void setSocketTelemetry(SocketTelemetry socketTelemetry) {
         this.socketTelemetry = socketTelemetry;
     }
 }

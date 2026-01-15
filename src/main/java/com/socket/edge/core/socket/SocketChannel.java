@@ -6,6 +6,7 @@ import com.socket.edge.model.SocketEndpoint;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +16,7 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
 
     private static final Logger log = LoggerFactory.getLogger(SocketChannel.class);
 
+    private final ChannelId channelId;
     private final Channel channel;
     private final AtomicInteger inflight = new AtomicInteger(0);
     private String socketId;
@@ -23,12 +25,15 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
     public SocketChannel(String socketId, Channel channel, SocketEndpoint se) {
         this.socketId = socketId;
         this.channel = channel;
+        this.channelId = channel.id();
         this.se = se;
     }
 
     public Channel channel() {
         return channel;
     }
+
+    public ChannelId channelId() { return channelId; }
 
     public boolean send(byte[] bytes) {
         Channel ch = this.channel;

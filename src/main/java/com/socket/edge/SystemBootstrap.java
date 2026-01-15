@@ -116,6 +116,7 @@ public class SystemBootstrap {
                 .setThreadPoolFactory(new VirtualThreadPoolFactory());
 
         SEEngine SEEngine = new SEEngine(
+                sockets,
                 metadata,
                 profileProcessor,
                 channelCfgSelector,
