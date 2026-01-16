@@ -29,8 +29,9 @@
 
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>
-                ${LOG_HOME}/${APP_NAME}.err.%d{yyyy-MM-dd}
+                ${LOG_HOME}/${APP_NAME}.%d{yyyy-MM-dd}.err
             </fileNamePattern>
+            <maxFileSize>500MB</maxFileSize>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
 

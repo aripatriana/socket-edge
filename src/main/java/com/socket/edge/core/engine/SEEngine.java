@@ -59,12 +59,13 @@ public class SEEngine extends RouteBuilder {
 
                     if (ctx != null) {
                         log.error(
-                                "[ERROR] corrKey=" + ctx.getCorrelationKey()
-                                        + " msg=" + ex.getMessage()
+                                "corrKey={} errMsg={} msg={}",ctx.getCorrelationKey(),
+                                ex.getMessage(),
+                                new String(ctx.getRawBytes())
                         );
                     } else {
                         log.error(
-                                "[ERROR] msg=" + ex.getMessage()
+                                "errMsg=" + ex.getMessage()
                         );
                     }
                 });
