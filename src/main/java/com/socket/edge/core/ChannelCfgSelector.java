@@ -1,7 +1,7 @@
 package com.socket.edge.core;
 
 import com.socket.edge.model.ChannelCfg;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.model.ClientChannel;
 import com.socket.edge.model.ServerChannel;
 

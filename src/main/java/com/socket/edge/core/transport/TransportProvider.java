@@ -1,7 +1,7 @@
 package com.socket.edge.core.transport;
 
 import com.socket.edge.model.ChannelCfg;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketType;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,9 +16,18 @@ public final class TransportProvider {
         transports.put(key, transport);
     }
 
-    public Transport resolve(ChannelCfg channelCfg, SocketType outboundSocketType) {
-        Objects.requireNonNull(outboundSocketType, "Outbound Socket Type is null");
-        Transport transport = transports.get(outboundSocketType.name() + "|" + channelCfg.name());
+    public void unregister(String key) {
+        transports.remove(key);
+    }
+
+    public void destroy() {
+        transports.clear();
+    }
+
+
+    public Transport resolve(ChannelCfg channelCfg, SocketType outboundType) {
+        Objects.requireNonNull(outboundType, "Outbound Type is null");
+        Transport transport = transports.get(outboundType.name() + "|" + channelCfg.name());
         Objects.requireNonNull(transport, "No transport for channelCfg " + channelCfg);
         return transport;
     }

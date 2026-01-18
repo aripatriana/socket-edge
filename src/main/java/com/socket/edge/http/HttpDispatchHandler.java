@@ -28,15 +28,15 @@ public class HttpDispatchHandler extends SimpleChannelInboundHandler<FullHttpReq
     @Override
     protected void channelRead0(ChannelHandlerContext ctx,
                                 FullHttpRequest req) {
-
-        HttpServiceHandler handler = handlers.get(req.uri());
+        QueryStringDecoder decoder = new QueryStringDecoder(req.uri());
+        HttpServiceHandler handler = handlers.get(decoder.path());
 
         if (handler == null) {
             send(ctx, HttpResponseStatus.NOT_FOUND, "NOT_FOUND");
             return;
         }
 
-        FullHttpResponse response = handler.handle(req);
+        FullHttpResponse response = handler.handle(req, decoder);
         ctx.writeAndFlush(response)
                 .addListener(ChannelFutureListener.CLOSE);
     }

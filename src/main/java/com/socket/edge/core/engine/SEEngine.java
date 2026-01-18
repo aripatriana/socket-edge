@@ -1,5 +1,6 @@
 package com.socket.edge.core.engine;
 
+import com.socket.edge.constant.Direction;
 import com.socket.edge.core.ChannelCfgSelector;
 import com.socket.edge.core.iso.Iso8583ProfileResolver;
 import com.socket.edge.core.LoadAware;
@@ -7,6 +8,7 @@ import com.socket.edge.core.cache.CorrelationStore;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketChannel;
+import com.socket.edge.core.socket.SocketManager;
 import com.socket.edge.core.transport.Transport;
 import com.socket.edge.core.transport.TransportProvider;
 import com.socket.edge.model.*;
@@ -17,14 +19,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
 
 
 public class SEEngine extends RouteBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(SEEngine.class);
 
-    private Map<String, AbstractSocket> sockets;
+    private SocketManager socketManager;
     private Metadata metadata;
     private Iso8583ProfileResolver profileProcessor;
     private ChannelCfgSelector channelCfgSelector;
@@ -32,10 +33,10 @@ public class SEEngine extends RouteBuilder {
     private TransportProvider transportProvider;
     private ConfigUtil cu = new ConfigUtil();
 
-    public SEEngine(Map<String, AbstractSocket> sockets, Metadata metadata, Iso8583ProfileResolver profileProcessor,
+    public SEEngine(SocketManager socketManager, Metadata metadata, Iso8583ProfileResolver profileProcessor,
                     ChannelCfgSelector channelCfgSelector, CorrelationStore correlationStore,
                     TransportProvider transportProvider) {
-        this.sockets = sockets;
+        this.socketManager = socketManager;
         this.metadata = metadata;
         this.profileProcessor = profileProcessor;
         this.channelCfgSelector = channelCfgSelector;
@@ -192,7 +193,7 @@ public class SEEngine extends RouteBuilder {
                             }
                             channel.send(ctx.getRawBytes());
                         } else {
-                            AbstractSocket socket = sockets.get(inbound.socketId());
+                            AbstractSocket socket = socketManager.getSocket(inbound.socketId());
                             List<SocketChannel> candidate = socket.channelPool().activeChannels();
                             if (candidate != null && candidate.size() > 0) {
                                 channel = candidate.get(0);

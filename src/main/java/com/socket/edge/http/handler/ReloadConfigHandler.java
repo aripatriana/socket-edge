@@ -4,6 +4,8 @@ import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -11,6 +13,7 @@ import java.util.Map;
 
 public class ReloadConfigHandler implements HttpServiceHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(ReloadConfigHandler.class);
     private AdminHttpService service;
     public ReloadConfigHandler(AdminHttpService service) {
         this.service = service;
@@ -22,12 +25,13 @@ public class ReloadConfigHandler implements HttpServiceHandler {
     }
 
     @Override
-    public FullHttpResponse handle(FullHttpRequest request) {
+    public FullHttpResponse handle(FullHttpRequest request, QueryStringDecoder decoder) {
         Map<String, Object> result = new HashMap<>();
         try {
             service.reload();
             result.put("status", "OK");
         } catch (Exception e) {
+            log.error("Error {}", e.getCause());
             result.put("status", "FAILED");
             result.put("message", e.getMessage());
         }

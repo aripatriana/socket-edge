@@ -8,21 +8,15 @@ import com.socket.edge.core.iso.Iso8583ProfileResolver;
 import com.socket.edge.core.cache.CorrelationStore;
 import com.socket.edge.core.cache.CacheCorrelationStore;
 import com.socket.edge.core.engine.SEEngine;
-import com.socket.edge.core.socket.AbstractSocket;
-import com.socket.edge.core.socket.NettyClientSocket;
-import com.socket.edge.core.socket.NettyServerSocket;
-import com.socket.edge.core.socket.SocketChannel;
-import com.socket.edge.core.strategy.SelectionFactory;
-import com.socket.edge.core.strategy.SelectionStrategy;
-import com.socket.edge.core.transport.ClientTransport;
-import com.socket.edge.core.transport.ServerTransport;
+import com.socket.edge.core.socket.*;
 import com.socket.edge.core.transport.TransportProvider;
+import com.socket.edge.core.transport.TransportRegister;
 import com.socket.edge.http.handler.*;
 import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.core.TelemetryRegistry;
+import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.SocketEndpoint;
-import com.socket.edge.model.SocketType;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.http.NettyHttpServer;
 import com.socket.edge.utils.ConfigUtil;
@@ -44,8 +38,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class SystemBootstrap {
 
@@ -54,14 +46,15 @@ public class SystemBootstrap {
     private Iso8583ProfileResolver profileProcessor;
     private ChannelCfgSelector channelCfgSelector;
     private TransportProvider transportProvider;
+    private TransportRegister transportRegister;
     private CorrelationStore correlationStore;
+    private SocketManager socketManager;
     private ISOPackager packager;
     private IsoParser parser;
     private ChannelCfgProcessor channelCfgProcessor;
     private CamelContext camelContext;
     private Metadata metadata;
     private NettyHttpServer httpServer;
-    private final Map<String, AbstractSocket> sockets = new ConcurrentHashMap<>();
     public static Config sc;
     private ConfigUtil cu = new ConfigUtil();
     private TelemetryRegistry telemetryRegistry;
@@ -90,6 +83,7 @@ public class SystemBootstrap {
         log.info("System initializing..");
         profileProcessor = new Iso8583ProfileResolver();
         transportProvider = new TransportProvider();
+        transportRegister = new TransportRegister(transportProvider);
         correlationStore = new CacheCorrelationStore(cu.getInt("engine.cache.ttl", 30000));
         channelCfgProcessor = new ChannelCfgProcessor();
         channelCfgSelector = new ChannelCfgSelector();
@@ -116,7 +110,7 @@ public class SystemBootstrap {
                 .setThreadPoolFactory(new VirtualThreadPoolFactory());
 
         SEEngine SEEngine = new SEEngine(
-                sockets,
+                socketManager,
                 metadata,
                 profileProcessor,
                 channelCfgSelector,
@@ -130,68 +124,23 @@ public class SystemBootstrap {
 
     public void handleSocketConfiguration() throws InterruptedException {
         log.info("Socket initializing..");
+        socketManager = new SocketManager(
+                transportRegister,
+                telemetryRegistry,
+                parser,
+                new ForwardService(camelContext.createProducerTemplate())
+        );
 
-        ForwardService forward = new ForwardService(camelContext.createProducerTemplate());
         for (ChannelCfg cfg : metadata.channelCfgs()) {
-
-            // ===== SERVER =====
-            if (cfg.server() != null) {
-                NettyServerSocket serverSocket =
-                        new NettyServerSocket(
-                                cfg.name(),
-                                cfg.server().listenPort(),
-                                cfg.server().pool(),
-                                telemetryRegistry,
-                                parser,
-                                forward
-                        );
-
-                serverSocket.start();
-                sockets.put(serverSocket.getId(), serverSocket);
-
-                SelectionStrategy<SocketChannel> strategy =
-                        SelectionFactory.create(cfg.client().strategy());
-
-                transportProvider.register(SocketType.SOCKET_SERVER.name()+ "|" + cfg.name(),
-                        new ServerTransport(serverSocket, strategy)
-                );
-            }
-
-            // ===== CLIENT =====
-            if (cfg.client() != null) {
-
-                List<NettyClientSocket> clientSockets = new ArrayList<>();
-
-                for (SocketEndpoint se : cfg.client().endpoints()) {
-                    NettyClientSocket clientSocket =
-                            new NettyClientSocket(
-                                    cfg.name(),
-                                    se,
-                                    telemetryRegistry,
-                                    parser,
-                                    forward
-                            );
-
-                    clientSocket.start();
-
-                    sockets.put(clientSocket.getId(), clientSocket);
-                    clientSockets.add(clientSocket);
-                }
-
-                SelectionStrategy<SocketChannel> strategy =
-                        SelectionFactory.create(cfg.client().strategy());
-
-                transportProvider.register(
-                        SocketType.SOCKET_CLIENT.name() + "|" + cfg.name(),
-                        new ClientTransport(clientSockets, strategy)
-                );
-            }
+            socketManager.createSocket(cfg);
         }
     }
 
+
     public void handleHttpServer() throws InterruptedException {
         log.info("Start httpserver..");
-        AdminHttpService adminHttpService = new AdminHttpService(sockets);
+        ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadata);
+        AdminHttpService adminHttpService = new AdminHttpService(socketManager, channelCfgProcessor, reloadCfgService);
         List<HttpServiceHandler> services = List.of(
                 new SocketStatusHandler(telemetryRegistry),
                 new ValidateConfigHandler(adminHttpService),
@@ -226,13 +175,8 @@ public class SystemBootstrap {
                 log.error("{}", e.getCause());
             }
 
-            for (AutoCloseable c : sockets.values()) {
-                try {
-                    c.close();
-                } catch (Exception ignored) {
-                    log.error("{}", ignored.getCause());
-                }
-            }
+            socketManager.destroyAll();
+            transportRegister.destroy();
 
             log.info("Gracefully shutdown took {}ms", (System.currentTimeMillis() - start));
         }));

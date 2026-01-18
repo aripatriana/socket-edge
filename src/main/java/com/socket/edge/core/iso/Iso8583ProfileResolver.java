@@ -1,7 +1,7 @@
 package com.socket.edge.core.iso;
 
 import com.socket.edge.core.MessageContext;
-import com.socket.edge.model.Direction;
+import com.socket.edge.constant.Direction;
 import com.socket.edge.model.Iso8583Profile;
 
 import static com.socket.edge.SystemBootstrap.sc;

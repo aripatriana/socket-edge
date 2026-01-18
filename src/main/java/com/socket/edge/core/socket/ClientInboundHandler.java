@@ -3,7 +3,7 @@ package com.socket.edge.core.socket;
 import com.socket.edge.core.ForwardService;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.SocketTelemetry;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.utils.IsoParser;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;

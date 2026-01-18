@@ -1,7 +1,7 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.model.SocketEndpoint;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketType;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
 
@@ -69,6 +69,19 @@ public class SocketChannelPool {
         return activeChannels.values().stream()
                 .filter(SocketChannel::isActive)
                 .toList();
+    }
+
+    public List<SocketChannel> getAllChannel() {
+        return activeChannels.values().stream().toList();
+    }
+
+    public void closeAll() {
+        activeChannels.values().forEach(ch -> {
+            if (ch.isActive()) {
+                ch.close();
+            }
+        });
+        activeChannels.clear();
     }
 
 }

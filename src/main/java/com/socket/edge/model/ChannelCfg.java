@@ -1,24 +1,45 @@
 package com.socket.edge.model;
 
-public final class ChannelCfg {
+import com.socket.edge.model.helper.*;
+import com.socket.edge.constant.ChannelCfgField;
+import com.socket.edge.utils.CommonUtil;
 
-    private final String name;
-    private final String type;
-    private final ServerChannel serverChannel;
-    private final ClientChannel clientChannel;
-    private final String profile;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-    public ChannelCfg(String name, String type, ServerChannel serverChannel, ClientChannel clientChannel, String profile) {
-        this.name = name;
-        this.type = type;
-        this.serverChannel = serverChannel;
-        this.clientChannel = clientChannel;
-        this.profile = profile;
+public record ChannelCfg (String name,
+                        String type,
+                        ServerChannel server,
+                        ClientChannel client, String profile) {
+
+    String id() {
+        return name;
     }
 
-    public String name() { return name; }
-    public String type() { return type; }
-    public ServerChannel server() { return serverChannel; }
-    public ClientChannel client() { return clientChannel; }
-    public String profile() { return profile; }
+    public ChannelCfgDiff diffWith(ChannelCfg newCfg) {
+        ChannelCfg oldCfg = this;
+        Map<ChannelCfgField, FieldDiff> changes = new LinkedHashMap<>();
+
+        CommonUtil.diff(changes,
+                ChannelCfgField.NAME,
+                oldCfg.type(), newCfg.type(),
+                ChangeImpact.RESTART);
+        CommonUtil.diff(changes,
+                ChannelCfgField.TYPE,
+                oldCfg.type(), newCfg.type(),
+                ChangeImpact.LIVE);
+        CommonUtil.diff(changes,
+                ChannelCfgField.PROFILE,
+                oldCfg.profile(), newCfg.profile(),
+                ChangeImpact.LIVE);
+
+        ServerChannelDiff serverChannelDiff = oldCfg.server().diffWith(newCfg.server);
+        ClientChannelDiff clientChannelDiff = oldCfg.client().diffWith(newCfg.client);
+
+        return new ChannelCfgDiff(
+                changes,
+                serverChannelDiff,
+                clientChannelDiff
+        );
+    }
 }

@@ -1,9 +1,9 @@
 package com.socket.edge.core;
 
 import com.socket.edge.core.socket.SocketChannel;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.model.ChannelCfg;
-import com.socket.edge.model.Direction;
+import com.socket.edge.constant.Direction;
 import com.socket.edge.model.Iso8583Profile;
 import io.netty.channel.Channel;
 
