@@ -4,8 +4,8 @@ import com.socket.edge.core.ForwardService;
 import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
-import com.socket.edge.model.SocketState;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketState;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
 import com.socket.edge.utils.IsoParser;
@@ -36,7 +36,7 @@ public class NettyClientSocket extends AbstractSocket {
     private ScheduledExecutorService scheduler;
     private Bootstrap bootstrap;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
-    private volatile boolean running = true;
+    private volatile boolean running = false;
     private int retryCount = 0;
     private static final int MAX_BACKOFF_SECONDS = 30;
     private IsoParser parser;
@@ -68,7 +68,12 @@ public class NettyClientSocket extends AbstractSocket {
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
+        if (running) {
+            log.warn("{} already running", getId());
+            return;
+        }
+
         log.info("Start socket client id={}", getId());
         running = true;
 
@@ -98,20 +103,41 @@ public class NettyClientSocket extends AbstractSocket {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
+        if (!running) {
+            log.warn("{} already stopped", getId());
+            return;
+        }
+
+        log.info("Stop socket server id={}", getId());
+
+        running = false;
         startTime = 0;
+        reconnecting.set(false);
+        retryCount = 0;
+
+        channelPool.closeAll();
 
         if (channel != null) {
             channel.close();
             channel = null;
         }
-
-        scheduler.shutdownNow();
-        group.shutdownGracefully();
     }
 
-    private void connect() {
-        if (!running) {
+    @Override
+    public synchronized void shutdown() throws InterruptedException {
+        stop();
+
+        if (scheduler != null) {
+            scheduler.shutdownNow();
+        }
+        if (group != null) {
+            group.shutdownGracefully();
+        }
+    }
+
+    private synchronized void connect() {
+        if (!running || group.isShutdown() || group.isTerminated()) {
             return;
         }
 
@@ -146,19 +172,21 @@ public class NettyClientSocket extends AbstractSocket {
         return channelPool;
     }
 
-    public void onDisconnect(Channel disconnected) {
+    public synchronized void onDisconnect(Channel disconnected) {
         if (this.channel != disconnected) {
             return;
         }
 
         this.channel = null;
+        channelPool.unregister(disconnected);
 
         log.info("{} disconnected", getId());
 
+        if (!running) return;
         scheduleReconnect();
     }
 
-    private void scheduleReconnect() {
+    private synchronized void scheduleReconnect() {
         if (!reconnecting.compareAndSet(false, true)) {
             return;
         }

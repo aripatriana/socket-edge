@@ -5,6 +5,8 @@ import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 public class SocketRestartHandler implements HttpServiceHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(SocketRestartHandler.class);
     private AdminHttpService adminHttpService;
     public SocketRestartHandler(AdminHttpService adminHttpService) {
         this.adminHttpService = adminHttpService;
@@ -24,9 +27,7 @@ public class SocketRestartHandler implements HttpServiceHandler {
     }
 
     @Override
-    public FullHttpResponse handle(FullHttpRequest req) {
-        QueryStringDecoder decoder = new QueryStringDecoder(req.uri());
-
+    public FullHttpResponse handle(FullHttpRequest req, QueryStringDecoder decoder) {
         String id = decoder.parameters()
                 .getOrDefault("id", List.of())
                 .stream()
@@ -55,6 +56,7 @@ public class SocketRestartHandler implements HttpServiceHandler {
             }
             result.put("status", "OK");
         } catch (Exception e) {
+            log.error("Error {}", e.getCause());
             result.put("status", "FAILED");
             result.put("message", e.getMessage());
         }

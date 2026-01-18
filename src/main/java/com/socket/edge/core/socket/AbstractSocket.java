@@ -1,9 +1,7 @@
 package com.socket.edge.core.socket;
 
-import com.socket.edge.model.SocketState;
-import com.socket.edge.model.SocketType;
-
-import java.util.concurrent.atomic.AtomicInteger;
+import com.socket.edge.constant.SocketState;
+import com.socket.edge.constant.SocketType;
 
 public abstract class AbstractSocket implements AutoCloseable {
 
@@ -39,6 +37,8 @@ public abstract class AbstractSocket implements AutoCloseable {
      * stop the socket
      */
     public abstract void stop() throws InterruptedException;
+
+    public abstract void shutdown() throws InterruptedException;
 
     public abstract SocketState getState();
 

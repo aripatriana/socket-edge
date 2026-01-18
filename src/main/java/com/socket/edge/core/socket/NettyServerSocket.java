@@ -4,8 +4,8 @@ import com.socket.edge.core.ForwardService;
 import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
-import com.socket.edge.model.SocketState;
-import com.socket.edge.model.SocketType;
+import com.socket.edge.constant.SocketState;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
 import com.socket.edge.utils.IsoParser;
@@ -27,10 +27,10 @@ public class NettyServerSocket extends AbstractSocket {
     private static final Logger log = LoggerFactory.getLogger(NettyServerSocket.class);
 
     private final int port;
-    private final List<SocketChannel> activeChannels = new CopyOnWriteArrayList<>();
     private EventLoopGroup boss;
     private EventLoopGroup worker;
     private Channel serverChannel;
+    private volatile boolean running = false;
     private IsoParser parser;
     private ForwardService forward;
     private SocketChannelPool channelPool;
@@ -47,8 +47,14 @@ public class NettyServerSocket extends AbstractSocket {
     }
 
     @Override
-    public void start() throws InterruptedException {
+    public synchronized void start() throws InterruptedException {
+        if (running) {
+            log.warn("{} already running", getId());
+            return;
+        }
+
         log.info("Start socket server id={}", getId());
+        running = true;
 
         boss = new NioEventLoopGroup(
                 1,
@@ -96,13 +102,27 @@ public class NettyServerSocket extends AbstractSocket {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
+        if (!running) {
+            log.warn("{} already stopped", getId());
+            return;
+        }
+        log.info("Stop socket server id={}", getId());
+
+        running = false;
         startTime = 0;
-        activeChannels.forEach(SocketChannel::close);
+
+        channelPool.closeAll();
 
         if (serverChannel != null) {
             serverChannel.close();
+            serverChannel = null;
         }
+    }
+
+    @Override
+    public synchronized void shutdown() throws InterruptedException {
+        stop();
 
         if (boss != null) {
             boss.shutdownGracefully();
