@@ -15,7 +15,7 @@ public record Iso8583ProfileDiff(
     public StringBuffer toString(StringBuffer sb) {
         if (!fieldChanges.isEmpty()) {
             fieldChanges.forEach((field, change) -> {
-                sb.append(">>> Modified profiles field:")
+                sb.append(".. Modified profiles field:")
                         .append(" field=").append(field)
                         .append(", old=").append(change.oldValue())
                         .append(", new=").append(change.newValue())
