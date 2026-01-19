@@ -24,8 +24,8 @@ public final class MessageContext {
     private byte[] rawBytes;
     private InetSocketAddress localAddress;
     private InetSocketAddress remoteAddress;
-    private SocketType inboundSocketType;
-    private SocketType outboundSocketType;
+    private SocketType inboundType;
+    private SocketType outboundType;
     private Iso8583Profile profile;
     private Map<String, Object> properties = new ConcurrentHashMap<>();
     private SocketTelemetry socketTelemetry;
@@ -119,20 +119,20 @@ public final class MessageContext {
         this.remoteAddress = remoteAddress;
     }
 
-    public SocketType getInboundSocketType() {
-        return inboundSocketType;
+    public SocketType getInboundType() {
+        return inboundType;
     }
 
-    public void setInboundSocketType(SocketType inboundSocketType) {
-        this.inboundSocketType = inboundSocketType;
+    public void setInboundType(SocketType inboundType) {
+        this.inboundType = inboundType;
     }
 
-    public SocketType getOutboundSocketType() {
-        return outboundSocketType;
+    public SocketType getOutboundType() {
+        return outboundType;
     }
 
-    public void setOutboundSocketType(SocketType outboundSocketType) {
-        this.outboundSocketType = outboundSocketType;
+    public void setOutboundType(SocketType outboundType) {
+        this.outboundType = outboundType;
     }
 
     public void setProfile(Iso8583Profile profile) {

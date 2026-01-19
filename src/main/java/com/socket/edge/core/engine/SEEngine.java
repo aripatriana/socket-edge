@@ -85,7 +85,7 @@ public class SEEngine extends RouteBuilder {
 
                     ChannelCfg cfg = channelCfgSelector.select(
                             ctx.getChannelName(),
-                            ctx.getInboundSocketType(),
+                            ctx.getInboundType(),
                             ctx.getLocalAddress(),
                             ctx.getRemoteAddress(),
                             metadata.channelCfgs()
@@ -157,7 +157,7 @@ public class SEEngine extends RouteBuilder {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     Transport transport =
-                            transportProvider.resolve(ctx.getChannelCfg(), ctx.getOutboundSocketType());
+                            transportProvider.resolve(ctx.getChannelCfg(), ctx.getOutboundType());
 
                     if (!transport.isUp()) {
                         throw new IllegalStateException("Transport DOWN");
@@ -165,7 +165,7 @@ public class SEEngine extends RouteBuilder {
 
                     transport.send(ctx);
 
-                    long latencyNs = (System.nanoTime()-(long)ctx.getProperty("received_time"));
+                    long latencyNs = (System.nanoTime()-(long)ctx.getProperty("receivedTimeNs"));
                     ctx.getSocketTelemetry().onComplete(latencyNs);
                 });
 
@@ -208,7 +208,7 @@ public class SEEngine extends RouteBuilder {
                                 );
                             }
                         }
-                        long latencyMs = (System.nanoTime()-(long)ctx.getProperty("received_time"));
+                        long latencyMs = (System.nanoTime()-(long)ctx.getProperty("receivedTimeNs"));
                         ctx.getSocketTelemetry().onComplete(latencyMs);
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());

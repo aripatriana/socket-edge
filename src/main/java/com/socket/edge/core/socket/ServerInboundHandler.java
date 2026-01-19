@@ -32,28 +32,41 @@ public final class ServerInboundHandler
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        super.channelRead(ctx, msg);
         long start = System.nanoTime();
         socketTelemetry.onMessage();
 
-        byte[] rawBytes = (byte[]) msg;
+        try {
+            if (!(msg instanceof byte[] rawBytes)) {
+                log.warn("Unsupported message type: {}", msg.getClass());
+            }
 
-        log.info("{} read {}", serverSocket.getId(), new String(rawBytes));
+            byte[] rawBytes = (byte[]) msg;
+            log.info("{} read {}", serverSocket.getId(), new String(rawBytes));
 
-        Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
-        MessageContext msgCtx = new MessageContext(parsedIsoFields, rawBytes);
-        msgCtx.setSocketId(serverSocket.getId());
-        msgCtx.setChannelName(serverSocket.getName());
-        msgCtx.setChannel(ctx.channel());
-        msgCtx.setSocketChannel(serverSocket.channelPool().get(ctx.channel()));
-        msgCtx.setLocalAddress((InetSocketAddress) ctx.channel().localAddress());
-        msgCtx.setRemoteAddress((InetSocketAddress) ctx.channel().remoteAddress());
-        msgCtx.setInboundSocketType(SocketType.SOCKET_SERVER);
-        msgCtx.setOutboundSocketType(SocketType.SOCKET_CLIENT);
-        msgCtx.addProperty("received_time", start);
-        msgCtx.setSocketTelemetry(socketTelemetry);
+            Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
+            MessageContext msgCtx = new MessageContext(parsedIsoFields, rawBytes);
+            msgCtx.setSocketId(serverSocket.getId());
+            msgCtx.setChannelName(serverSocket.getName());
+            msgCtx.setChannel(ctx.channel());
+            msgCtx.setLocalAddress((InetSocketAddress) ctx.channel().localAddress());
+            msgCtx.setRemoteAddress((InetSocketAddress) ctx.channel().remoteAddress());
+            msgCtx.setInboundType(SocketType.SOCKET_SERVER);
+            msgCtx.setOutboundType(SocketType.SOCKET_CLIENT);
+            msgCtx.addProperty("receivedTimeNs", start);
+            msgCtx.setSocketTelemetry(socketTelemetry);
 
-        forwardService.forward(msgCtx);
+            var socketChannel = serverSocket.channelPool().get(ctx.channel());
+            if (socketChannel == null) {
+                log.warn("SocketChannel not found for {}", ctx.channel().id());
+                return;
+            }
+            msgCtx.setSocketChannel(socketChannel);
+
+            forwardService.forward(msgCtx);
+        } catch (Exception e) {
+            log.error("{} error read message: {}", serverSocket.getId(), e.getMessage());
+            socketTelemetry.onError();
+        }
     }
 
     @Override
@@ -73,6 +86,7 @@ public final class ServerInboundHandler
             ChannelHandlerContext ctx,
             Throwable cause
     ) {
+        // TODO harus ada handling proper
         log.error("{} exception occured {}", serverSocket.getId(), cause);
         serverSocket.channelPool().unregister(ctx.channel());
         ctx.close();
