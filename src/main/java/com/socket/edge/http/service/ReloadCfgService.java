@@ -45,9 +45,14 @@ public class ReloadCfgService {
     }
 
     public void reload() throws IOException {
-        Metadata newMetadata = channelCfgProcessor.process(channelConfigPath());
-        Objects.requireNonNull(newMetadata, "Invalid channel.conf");
-        reloadConfig(newMetadata);
+        try {
+            Metadata newMetadata = channelCfgProcessor.process(channelConfigPath());
+            Objects.requireNonNull(newMetadata, "Invalid channel.conf");
+            reloadConfig(newMetadata);
+        } catch (Exception e) {
+            log.error("Failed to reload channel config", e);
+            throw new RuntimeException("Failed to reload channel configuration", e);
+        }
     }
 
     public void reloadConfig(Metadata newMetadata) {
