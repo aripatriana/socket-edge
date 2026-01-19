@@ -1,6 +1,7 @@
 package com.socket.edge.http.handler;
 
 import com.socket.edge.http.service.ReloadCfgService;
+import com.socket.edge.model.helper.MetadataDiff;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -28,8 +29,9 @@ public class ValidateConfigHandler implements HttpServiceHandler {
     public FullHttpResponse handle(FullHttpRequest request, QueryStringDecoder decoder) {
         Map<String, Object> result = new HashMap<>();
         try {
-            reloadCfgService.validate();
+            MetadataDiff md = reloadCfgService.validate();
             result.put("status", "OK");
+            result.put("message", md.hasChanges() ? md.toString(new StringBuffer()) : "No changes detected");
         } catch (Exception e) {
             log.error("Error {}", e.getCause());
             result.put("status", "FAILED");

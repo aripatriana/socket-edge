@@ -33,8 +33,15 @@ public class ReloadCfgService {
                 CHANNEL_CONF
         );
     }
-    public void validate() throws IOException {
-        channelCfgProcessor.process(channelConfigPath());
+    public MetadataDiff validate() throws IOException {
+        try {
+            Metadata newMetadata = channelCfgProcessor.process(channelConfigPath());
+            Objects.requireNonNull(newMetadata, "Invalid channel.conf");
+            return metadata.diffWith(newMetadata);
+        } catch (Exception e) {
+            log.error("Failed to validate channel config", e);
+            throw new RuntimeException("Failed to validate channel configuration", e);
+        }
     }
 
     public void reload() throws IOException {
@@ -47,10 +54,12 @@ public class ReloadCfgService {
         try {
             MetadataDiff metadataDiff = metadata.diffWith(newMetadata);
             metadataDiff.deletedChannelCfgs().forEach(cfg -> {
+                log.info("Deleted channel config detected for channel: {}", cfg.name());
                 socketManager.destroySocket(cfg);
             });
 
             metadataDiff.addedChannelCfgs().forEach(cfg -> {
+                log.info("Added channel config detected for channel: {}", cfg.name());
                 socketManager.createSocket(cfg);
             });
 

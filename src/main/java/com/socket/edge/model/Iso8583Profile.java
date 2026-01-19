@@ -29,10 +29,17 @@ public record Iso8583Profile (
         // 1. directions
         CommonUtil.diff(
                 changes,
-                ProfileField.DIRECTIONS,
-                this.directions,
-                newOne.directions,
-                ChangeImpact.LIVE   // atomic swap
+                ProfileField.DIRECTION_INBOUND,
+                this.directions.get(Direction.INBOUND),
+                newOne.directions.get(Direction.INBOUND),
+                ChangeImpact.LIVE
+        );
+        CommonUtil.diff(
+                changes,
+                ProfileField.DIRECTION_OUTBOUND,
+                this.directions.get(Direction.OUTBOUND),
+                newOne.directions.get(Direction.OUTBOUND),
+                ChangeImpact.LIVE
         );
 
         // 2. correlation fields

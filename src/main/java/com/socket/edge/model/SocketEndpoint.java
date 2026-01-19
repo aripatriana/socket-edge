@@ -39,7 +39,7 @@ public record SocketEndpoint(
         CommonUtil.diff(changes,
                 SockeEndpointField.PRIORITY,
                 oldOne.priority(), newOne.priority(),
-                ChangeImpact.RESTART);
+                ChangeImpact.LIVE);
         return new SocketEndpointDiff(oldOne, newOne, changes);
     }
 }

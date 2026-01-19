@@ -22,7 +22,7 @@ public record ChannelCfg (String name,
 
         CommonUtil.diff(changes,
                 ChannelCfgField.NAME,
-                oldCfg.type(), newCfg.type(),
+                oldCfg.name(), newCfg.name(),
                 ChangeImpact.RESTART);
         CommonUtil.diff(changes,
                 ChannelCfgField.TYPE,

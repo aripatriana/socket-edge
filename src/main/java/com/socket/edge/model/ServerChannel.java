@@ -30,26 +30,34 @@ public record ServerChannel(
         // 1. Identified field changes
         Map<ServerChannelField, FieldDiff> changes = new LinkedHashMap<>();
         CommonUtil.diff(changes,
+                ServerChannelField.LISTEN,
+                oldOne.listenHost(), newOne.listenHost(),
+                ChangeImpact.RESTART);
+        CommonUtil.diff(changes,
+                ServerChannelField.PORT,
+                oldOne.listenPort(), newOne.listenPort(),
+                ChangeImpact.RESTART);
+        CommonUtil.diff(changes,
                 ServerChannelField.STRATEGY,
                 oldOne.strategy(), newOne.strategy(),
                 ChangeImpact.LIVE);
 
         // 2. Map endpoint by ID
         Map<String, SocketEndpoint> oldMap = oldOne.pool.stream()
-                .collect(Collectors.toMap(SocketEndpoint::id, e -> e));
+                .collect(Collectors.toMap(SocketEndpoint::host, e -> e));
 
         Map<String, SocketEndpoint> newMap = newOne.pool.stream()
-                .collect(Collectors.toMap(SocketEndpoint::id, e -> e));
+                .collect(Collectors.toMap(SocketEndpoint::host, e -> e));
 
         // 3. Added
         List<SocketEndpoint> added = newMap.keySet().stream()
-                .filter(id -> !oldMap.containsKey(id))
+                .filter(host -> !oldMap.containsKey(host))
                 .map(newMap::get)
                 .toList();
 
         // 4. Removed
         List<SocketEndpoint> removed = oldMap.keySet().stream()
-                .filter(id -> !newMap.containsKey(id))
+                .filter(host -> !newMap.containsKey(host))
                 .map(oldMap::get)
                 .toList();
 
