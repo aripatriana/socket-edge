@@ -50,7 +50,7 @@ public class SocketManager {
                 sockets.put(serverSocket.getId(), serverSocket);
                 transportRegister.registerServerTransport(cfg, serverSocket);
 
-                serverSocket.start();
+//                serverSocket.start();
             } else {
                 log.warn("Socket has already exists with id {}");
             }
@@ -80,9 +80,9 @@ public class SocketManager {
             }
 
             transportRegister.registerClientTransport(cfg, clientSockets);
-            clientSockets.forEach(c -> {
-                c.start();
-            });
+//            clientSockets.forEach(c -> {
+//                c.start();
+//            });
         }
     }
 
@@ -110,7 +110,7 @@ public class SocketManager {
         return sockets.get(id);
     }
 
-    public void start(String id) throws InterruptedException {
+    public void startById(String id) throws InterruptedException {
         log.info("Start socket by id {}", id);
         Objects.requireNonNull(id, "Required id");
         AbstractSocket socket = sockets.get(id);
@@ -122,7 +122,7 @@ public class SocketManager {
         }
     }
 
-    public void stop(String id) throws InterruptedException {
+    public void stopById(String id) throws InterruptedException {
         Objects.requireNonNull(id, "Required name");
         AbstractSocket socket = sockets.get(id);
         Objects.requireNonNull(socket, "Object socket null");
@@ -134,20 +134,20 @@ public class SocketManager {
     }
 
     public void restart(String id) throws InterruptedException {
-        stop(id);
-        Thread.sleep(1000);
-        start(id);
+        stopById(id);
+        Thread.sleep(100);
+        startById(id);
     }
 
     public void restartByName(String name) throws InterruptedException {
         stopByName(name);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         startByName(name);
     }
 
     public void restartAll() throws InterruptedException {
         stopAll();
-        Thread.sleep(1000);
+        Thread.sleep(100);
         startAll();
     }
 

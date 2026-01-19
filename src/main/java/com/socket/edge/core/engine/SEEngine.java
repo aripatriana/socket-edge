@@ -33,15 +33,18 @@ public class SEEngine extends RouteBuilder {
     private TransportProvider transportProvider;
     private ConfigUtil cu = new ConfigUtil();
 
-    public SEEngine(SocketManager socketManager, Metadata metadata, Iso8583ProfileResolver profileProcessor,
+    public SEEngine(Metadata metadata, Iso8583ProfileResolver profileProcessor,
                     ChannelCfgSelector channelCfgSelector, CorrelationStore correlationStore,
                     TransportProvider transportProvider) {
-        this.socketManager = socketManager;
         this.metadata = metadata;
         this.profileProcessor = profileProcessor;
         this.channelCfgSelector = channelCfgSelector;
         this.correlationStore = correlationStore;
         this.transportProvider = transportProvider;
+    }
+
+    public void bindSocketManager(SocketManager socketManager) {
+        this.socketManager = socketManager;
     }
 
     @Override
