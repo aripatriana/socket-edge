@@ -119,7 +119,7 @@ public class NettyServerSocket extends AbstractSocket {
         channelPool.closeAll();
 
         if (serverChannel != null) {
-            serverChannel.close().syncUninterruptibly();;
+            serverChannel.close();
             serverChannel = null;
         }
     }
@@ -129,12 +129,14 @@ public class NettyServerSocket extends AbstractSocket {
         stop();
 
         if (boss != null) {
-            boss.shutdownGracefully().syncUninterruptibly();;
+            boss.shutdownGracefully();
         }
 
         if (worker != null) {
-            worker.shutdownGracefully().syncUninterruptibly();;
+            worker.shutdownGracefully();
         }
+
+        log.info("Shutdown socker server id={} done", getId());
     }
 
     @Override

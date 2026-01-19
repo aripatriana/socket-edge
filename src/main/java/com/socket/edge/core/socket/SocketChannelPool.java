@@ -78,7 +78,7 @@ public class SocketChannelPool {
     public void closeAll() {
         activeChannels.values().forEach(ch -> {
             if (ch.isActive()) {
-                ch.close().syncUninterruptibly();;
+                ch.close();
             }
         });
         activeChannels.clear();

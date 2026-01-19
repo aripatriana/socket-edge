@@ -123,7 +123,7 @@ public class NettyClientSocket extends AbstractSocket {
         channelPool.closeAll();
 
         if (channel != null) {
-            channel.close().syncUninterruptibly();;
+            channel.close();
             channel = null;
         }
     }
@@ -136,8 +136,10 @@ public class NettyClientSocket extends AbstractSocket {
             scheduler.shutdownNow();
         }
         if (group != null) {
-            group.shutdownGracefully().syncUninterruptibly();;
+            group.shutdownGracefully();
         }
+
+        log.info("Shutdown client server id={} done", getId());
     }
 
     private synchronized void connect() {
