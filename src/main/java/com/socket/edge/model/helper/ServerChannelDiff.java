@@ -25,14 +25,14 @@ public record ServerChannelDiff (
     public StringBuffer toString(StringBuffer sb) {
         if (!removedEndpoints.isEmpty()) {
             removedEndpoints.forEach(endpoint -> {
-                sb.append(">>> Removed server endpoint detected: ")
+                sb.append("... Removed server endpoint detected: ")
                         .append(" endpoint=").append(endpoint.host())
                         .append("\n");
             });
         }
         if (!addedEndpoints.isEmpty()) {
             addedEndpoints.forEach(endpoint ->{
-                sb.append(">>> Added server endpoint detected: ")
+                sb.append("... Added server endpoint detected: ")
                         .append(" endpoint=").append(endpoint.host())
                         .append("\n");
             });
@@ -40,7 +40,7 @@ public record ServerChannelDiff (
         if (!modifiedEndpoints.isEmpty()) {
             modifiedEndpoints.forEach(socketEndpointDiff -> {
                 if (socketEndpointDiff.hasChanges()) {
-                    sb.append(">>> Modified endpoint detected.")
+                    sb.append("... Modified endpoint detected.")
                             .append("\n");
                     socketEndpointDiff.toString(sb);
                 }
@@ -48,7 +48,7 @@ public record ServerChannelDiff (
         }
         if (!fieldChanges.isEmpty()) {
             fieldChanges.forEach((field, change) -> {
-                sb.append(">>> Modified server channel field:")
+                sb.append("... Modified server channel field:")
                         .append(" endpoint=").append(newServerChannel().id())
                         .append(", field=").append(field)
                         .append(", old=").append(change.oldValue())

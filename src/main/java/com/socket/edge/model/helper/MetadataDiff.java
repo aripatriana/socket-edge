@@ -29,14 +29,14 @@ public record MetadataDiff(
     public StringBuffer toString(StringBuffer sb) {
         if (!deletedChannelCfgs.isEmpty()) {
             deletedChannelCfgs.forEach(channel -> {
-                sb.append("> Removed channel detected: ")
+                sb.append(". Removed channel detected: ")
                         .append(" channel=").append(channel.name())
                         .append("\n");
             });
         }
         if (!addedChannelCfgs.isEmpty()) {
             addedChannelCfgs.forEach(channel ->{
-                sb.append("> Added channel detected: ")
+                sb.append(". Added channel detected: ")
                         .append(" channel=").append(channel.name())
                         .append("\n");
             });
@@ -44,7 +44,7 @@ public record MetadataDiff(
         if (!modifiedChannelCfg.isEmpty()) {
             modifiedChannelCfg.forEach(channelCfgDiff -> {
                 if (channelCfgDiff.hasChanges()) {
-                    sb.append("> Modified channel detected: ")
+                    sb.append(". Modified channel detected: ")
                             .append(" channel=").append(channelCfgDiff.oldCfg().name())
                             .append("\n");
                     channelCfgDiff.toString(sb);
@@ -53,14 +53,14 @@ public record MetadataDiff(
         }
         if (!removedProfiles.isEmpty()) {
             removedProfiles.forEach(profile -> {
-                sb.append("> Removed profile detected: ")
+                sb.append(". Removed profile detected: ")
                         .append(" profile=").append(profile)
                         .append("\n");
             });
         }
         if (!addedProfiles.isEmpty()) {
             addedProfiles.forEach(profile -> {
-                sb.append("> Added profile detected: ")
+                sb.append(". Added profile detected: ")
                         .append(" profile=").append(profile)
                         .append("\n");
             });
@@ -68,7 +68,7 @@ public record MetadataDiff(
         if (!modifiedProfiles.isEmpty()) {
             modifiedProfiles.forEach(iso8583ProfileDiff -> {
                 if (iso8583ProfileDiff.hasChanges()) {
-                    sb.append("> Modified profile detected: ")
+                    sb.append(". Modified profile detected: ")
                             .append(" profileName=").append(iso8583ProfileDiff.profileName())
                             .append("\n");
                     iso8583ProfileDiff.toString(sb);

@@ -16,7 +16,7 @@ public record SocketEndpointDiff (
     public StringBuffer toString(StringBuffer sb) {
         if (hasChanges()) {
             fieldChanges.forEach((field, change) -> {
-                sb.append(">>>> Modified endpoint field:")
+                sb.append(".... Modified endpoint field:")
                         .append(" endpoint=").append(oldSocketEndpoint().id())
                         .append(", field=").append(field)
                         .append(", old=").append(change.oldValue())
