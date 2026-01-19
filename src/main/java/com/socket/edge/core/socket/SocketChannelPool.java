@@ -13,10 +13,10 @@ import java.util.Map;
 
 public class SocketChannelPool {
 
-    String socketId;
-    SocketType socketType;
-    Map<ChannelId, SocketChannel> activeChannels = new HashMap<>();
-    List<SocketEndpoint> allowlist = new ArrayList<>();
+    private String socketId;
+    private SocketType socketType;
+    private final Map<ChannelId, SocketChannel> activeChannels = new HashMap<>();
+    private List<SocketEndpoint> allowlist = new ArrayList<>();
 
     public SocketChannelPool(String socketId, SocketType socketType, List<SocketEndpoint> allowlist) {
         this.socketId = socketId;
@@ -78,7 +78,7 @@ public class SocketChannelPool {
     public void closeAll() {
         activeChannels.values().forEach(ch -> {
             if (ch.isActive()) {
-                ch.close();
+                ch.close().syncUninterruptibly();;
             }
         });
         activeChannels.clear();
