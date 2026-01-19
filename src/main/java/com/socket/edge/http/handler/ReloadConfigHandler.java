@@ -1,6 +1,6 @@
 package com.socket.edge.http.handler;
 
-import com.socket.edge.http.service.AdminHttpService;
+import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -14,9 +14,9 @@ import java.util.Map;
 public class ReloadConfigHandler implements HttpServiceHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ReloadConfigHandler.class);
-    private AdminHttpService service;
-    public ReloadConfigHandler(AdminHttpService service) {
-        this.service = service;
+    private ReloadCfgService reloadCfgService;
+    public ReloadConfigHandler(ReloadCfgService reloadCfgService) {
+        this.reloadCfgService = reloadCfgService;
     }
 
     @Override
@@ -28,7 +28,7 @@ public class ReloadConfigHandler implements HttpServiceHandler {
     public FullHttpResponse handle(FullHttpRequest request, QueryStringDecoder decoder) {
         Map<String, Object> result = new HashMap<>();
         try {
-            service.reload();
+            reloadCfgService.reload();
             result.put("status", "OK");
         } catch (Exception e) {
             log.error("Error {}", e.getCause());

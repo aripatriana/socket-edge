@@ -22,6 +22,18 @@ public final class ClientTransport implements Transport {
         this.strategy = strategy;
     }
 
+    public List<NettyClientSocket> getSockets() {
+        return sockets;
+    }
+
+    public void addSocket(NettyClientSocket socket) {
+        this.sockets.add(socket);
+    }
+
+    public void removeSocket(NettyClientSocket socket) {
+        this.sockets.remove(socket);
+    }
+
     @Override
     public void send(MessageContext ctx) {
 
@@ -48,5 +60,10 @@ public final class ClientTransport implements Transport {
     public boolean isUp() {
         return sockets.stream()
                 .anyMatch(socket -> socket.getState() == SocketState.UP);
+    }
+
+    @Override
+    public void shutdown() {
+
     }
 }

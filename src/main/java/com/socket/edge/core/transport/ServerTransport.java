@@ -43,5 +43,10 @@ public final class ServerTransport implements Transport {
     public boolean isUp() {
         return !socket.channelPool().activeChannels().isEmpty();
     }
+
+    @Override
+    public void shutdown() {
+
+    }
 }
 

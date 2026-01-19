@@ -46,12 +46,21 @@ public class TransportRegister {
     public void registerServerTransport(ChannelCfg cfg, NettyServerSocket socket) {
         Objects.requireNonNull(cfg, "cfg must not be null");
         Objects.requireNonNull(socket, "socket must not be null");
+
+        String key = key(socket.getType(), cfg.name());
         SelectionStrategy<SocketChannel> strategy =
                 SelectionFactory.create(cfg.client().strategy());
 
-        transportProvider.register(key(socket.getType(), cfg.name()),
+        boolean registered = transportProvider.registerIfAbsent(
+                key,
                 new ServerTransport(socket, strategy)
         );
+
+        if (!registered) {
+            throw new IllegalStateException(
+                    "Server transport already registered for key=" + key
+            );
+        }
     }
 
     /**
@@ -86,13 +95,21 @@ public class TransportRegister {
         if (clientSockets.isEmpty()) {
             throw new IllegalArgumentException("clientSockets must not be empty");
         }
+
+        String key = key(clientSockets.get(0).getType(), cfg.name());
         SelectionStrategy<SocketChannel> strategy =
                 SelectionFactory.create(cfg.client().strategy());
 
-        transportProvider.register(
-                key(clientSockets.get(0).getType(), cfg.name()),
+        boolean registered = transportProvider.registerIfAbsent(
+                key,
                 new ClientTransport(clientSockets, strategy)
         );
+
+        if (!registered) {
+            throw new IllegalStateException(
+                    "Client transport already registered for key=" + key
+            );
+        }
     }
 
     /**
@@ -114,15 +131,16 @@ public class TransportRegister {
      * - Looks up the transport by combining the client's SocketType and the channelName.
      * - If the found object is a ClientTransport, invokes addSocket; otherwise logs a warning.
      *
-     * @param channelName name of the channel to which the socket should be added (not null)
+     * @param cfg name of the channel to which the socket should be added (not null)
      * @param clientSocket socket instance to add (not null)
      */
-    public void addSocketToClientTransport(String channelName, NettyClientSocket clientSocket) {
-        Object t = transportProvider.get(key(clientSocket.getType(), channelName));
+    public void registerClientTransport(ChannelCfg cfg, NettyClientSocket clientSocket) {
+        String key = key(clientSocket.getType(), cfg.name());
+        Object t = transportProvider.get(key);
         if (t instanceof ClientTransport) {
             ((ClientTransport) t).addSocket(clientSocket);
         } else {
-            log.warn("No ClientTransport found for key {} or type mismatch", key(clientSocket.getType(), channelName));
+            log.warn("No ClientTransport found for key {} or type mismatch", key(clientSocket.getType(), cfg.name()));
         }
     }
 
@@ -133,15 +151,16 @@ public class TransportRegister {
      * - Looks up the transport by combining the client's SocketType and the channelName.
      * - If the found object is a ClientTransport, invokes removeSocket; otherwise logs a warning.
      *
-     * @param channelName name of the channel from which the socket should be removed (not null)
+     * @param cfg name of the channel from which the socket should be removed (not null)
      * @param clientSocket socket instance to remove (not null)
      */
-    public void removeSocketFromClientTransport(String channelName, NettyClientSocket clientSocket) {
-        Object t = transportProvider.get(key(clientSocket.getType(), channelName));
+    public void unregisterClientTransport(ChannelCfg cfg, NettyClientSocket clientSocket) {
+        String key = key(clientSocket.getType(), cfg.name());
+        Object t = transportProvider.get(key);
         if (t instanceof ClientTransport) {
             ((ClientTransport) t).removeSocket(clientSocket);
         } else {
-            log.warn("No ClientTransport found for key {} or type mismatch", key(clientSocket.getType(), channelName));
+            log.warn("No ClientTransport found for key {} or type mismatch", key(clientSocket.getType(), cfg.name()));
         }
     }
 

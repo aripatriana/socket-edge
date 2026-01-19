@@ -1,6 +1,7 @@
 package com.socket.edge.http.handler;
 
 import com.socket.edge.http.service.AdminHttpService;
+import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.*;
@@ -14,9 +15,9 @@ import java.util.Map;
 public class ValidateConfigHandler implements HttpServiceHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MetricsServiceHandle.class);
-    private AdminHttpService service;
-    public ValidateConfigHandler(AdminHttpService service) {
-        this.service = service;
+    private ReloadCfgService reloadCfgService;
+    public ValidateConfigHandler(ReloadCfgService reloadCfgService) {
+        this.reloadCfgService = reloadCfgService;
     }
 
     @Override
@@ -28,7 +29,7 @@ public class ValidateConfigHandler implements HttpServiceHandler {
     public FullHttpResponse handle(FullHttpRequest request, QueryStringDecoder decoder) {
         Map<String, Object> result = new HashMap<>();
         try {
-            service.validate();
+            reloadCfgService.validate();
             result.put("status", "OK");
         } catch (Exception e) {
             log.error("Error {}", e.getCause());

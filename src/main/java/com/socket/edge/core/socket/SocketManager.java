@@ -33,77 +33,123 @@ public class SocketManager {
         this.forwardService = forwardService;
     }
 
-    public void createSocket(ChannelCfg cfg) throws InterruptedException {
-        // ===== SERVER =====
-        if (cfg.server() != null) {
-            NettyServerSocket serverSocket =
-                    new NettyServerSocket(
-                            cfg.name(),
-                            cfg.server().listenPort(),
-                            cfg.server().pool(),
-                            telemetryRegistry,
-                            isoParser,
-                            forwardService
-                    );
+    public void createSocket(ChannelCfg cfg) {
+        Objects.requireNonNull(cfg, "ChannelCfg required");
 
-            if (!sockets.containsKey(serverSocket.getId())) {
-                sockets.put(serverSocket.getId(), serverSocket);
-                transportRegister.registerServerTransport(cfg, serverSocket);
+        createServerSocket(cfg);
+        createClientSockets(cfg);
+    }
 
-//                serverSocket.start();
-            } else {
-                log.warn("Socket has already exists with id {}");
-            }
-        }
+    private void createServerSocket(ChannelCfg cfg) {
+        if (cfg.server() == null) return;
 
-        // ===== CLIENT =====
-        if (cfg.client() != null) {
+        NettyServerSocket serverSocket = new NettyServerSocket(
+                cfg.name(),
+                cfg.server().listenPort(),
+                cfg.server().pool(),
+                telemetryRegistry,
+                isoParser,
+                forwardService
+        );
 
-            List<NettyClientSocket> clientSockets = new ArrayList<>();
-
-            for (SocketEndpoint se : cfg.client().endpoints()) {
-                NettyClientSocket clientSocket =
-                        new NettyClientSocket(
-                                cfg.name(),
-                                se,
-                                telemetryRegistry,
-                                isoParser,
-                                forwardService
-                        );
-
-                if (!sockets.containsKey(clientSocket.getId())) {
-                    sockets.put(clientSocket.getId(), clientSocket);
-                    clientSockets.add(clientSocket);
-                } else {
-                    log.warn("Socket has already exists with id {}");
-                }
-            }
-
-            transportRegister.registerClientTransport(cfg, clientSockets);
-//            clientSockets.forEach(c -> {
-//                c.start();
-//            });
+        AbstractSocket existing = sockets.putIfAbsent(serverSocket.getId(), serverSocket);
+        if (existing == null) {
+            transportRegister.registerServerTransport(cfg, serverSocket);
+            log.info("Server socket registered id={}", serverSocket.getId());
+        } else {
+            log.warn("Server socket already exists id={}", serverSocket.getId());
         }
     }
 
-    public void destroySocket(ChannelCfg cfg) throws InterruptedException {
-        AbstractSocket serverSocket = sockets.remove(CommonUtil.serverId(cfg.name(), cfg.server().listenPort()));
-        if (serverSocket != null) {
-            serverSocket.stop();
-        }
-        transportRegister.unregisterServerTransport(cfg);
+    public void createClientSockets(ChannelCfg cfg) {
+        if (cfg.client() == null || cfg.client().endpoints().isEmpty()) return;
 
-        cfg.client().endpoints().forEach(se -> {
-            AbstractSocket clientSocket = sockets.remove( CommonUtil.clientId(cfg.name(), se.host(), se.port()));
-            if (clientSocket != null) {
-                try {
-                    clientSocket.stop();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+        List<NettyClientSocket> registered = new ArrayList<>();
+
+        for (SocketEndpoint se : cfg.client().endpoints()) {
+            NettyClientSocket clientSocket = new NettyClientSocket(
+                    cfg.name(),
+                    se,
+                    telemetryRegistry,
+                    isoParser,
+                    forwardService
+            );
+
+            AbstractSocket existing = sockets.putIfAbsent(clientSocket.getId(), clientSocket);
+            if (existing == null) {
+                registered.add(clientSocket);
+                log.info("Client socket registered id={}", clientSocket.getId());
+            } else {
+                log.warn("Client socket already exists id={}", clientSocket.getId());
             }
-        });
-        transportRegister.unregisterClientTransport(cfg);
+        }
+
+        if (!registered.isEmpty()) {
+            transportRegister.registerClientTransport(cfg, registered);
+        }
+    }
+
+    public void createClientSockets(ChannelCfg cfg, SocketEndpoint se) {
+        if (cfg.client() == null || cfg.client().endpoints().isEmpty() || se == null) return;
+
+        NettyClientSocket clientSocket = new NettyClientSocket(
+                cfg.name(),
+                se,
+                telemetryRegistry,
+                isoParser,
+                forwardService
+        );
+
+        AbstractSocket existing = sockets.putIfAbsent(clientSocket.getId(), clientSocket);
+        if (existing == null) {
+            transportRegister.registerClientTransport(cfg, clientSocket);
+            log.info("Client socket registered id={}", clientSocket.getId());
+        } else {
+            log.warn("Client socket already exists id={}", clientSocket.getId());
+        }
+    }
+
+    public void destroyServerSocket(ChannelCfg cfg, SocketEndpoint se) {
+        Objects.requireNonNull(cfg, "ChannelCfg required");
+        Objects.requireNonNull(se, "SocketEndpoint required");
+
+        if (cfg.server() != null) {
+            String id = CommonUtil.serverId(cfg.name(), cfg.server().listenPort());
+            removeAndShutdown(id);
+            transportRegister.unregisterServerTransport(cfg);
+        }
+    }
+
+    public void destroyClientSocket(ChannelCfg cfg, SocketEndpoint se) {
+        Objects.requireNonNull(cfg, "ChannelCfg required");
+        Objects.requireNonNull(se, "SocketEndpoint required");
+
+        if (cfg.client() != null) {
+            String id = CommonUtil.clientId(cfg.name(), se.host(), se.port());
+            AbstractSocket socket = removeAndShutdown(id);
+            if (socket != null) {
+                log.info("Destroyed client socket id={}", id);
+                transportRegister.unregisterClientTransport(cfg, (NettyClientSocket) socket);
+            }
+        }
+    }
+
+    public void destroySocket(ChannelCfg cfg) {
+        Objects.requireNonNull(cfg, "ChannelCfg required");
+
+        if (cfg.server() != null) {
+            String id = CommonUtil.serverId(cfg.name(), cfg.server().listenPort());
+            removeAndShutdown(id);
+            transportRegister.unregisterServerTransport(cfg);
+        }
+
+        if (cfg.client() != null) {
+            cfg.client().endpoints().forEach(se -> {
+                String id = CommonUtil.clientId(cfg.name(), se.host(), se.port());
+                removeAndShutdown(id);
+            });
+            transportRegister.unregisterClientTransport(cfg);
+        }
     }
 
     public AbstractSocket getSocket(String id) {
@@ -118,6 +164,7 @@ public class SocketManager {
         try {
             socket.start();
         } catch (InterruptedException e) {
+            log.error("Start failed id={}", socket.getId(), e);
             throw new RuntimeException(e);
         }
     }
@@ -129,6 +176,7 @@ public class SocketManager {
         try {
             socket.stop();
         } catch (InterruptedException e) {
+            log.error("Stop failed id={}", socket.getId(), e);
             throw new RuntimeException(e);
         }
     }
@@ -156,6 +204,7 @@ public class SocketManager {
             try {
                 s.start();
             } catch (InterruptedException e) {
+                log.error("Start failed id={}", s.getId(), e);
                 throw new RuntimeException(e);
             }
         });
@@ -166,6 +215,7 @@ public class SocketManager {
             try {
                 s.stop();
             } catch (InterruptedException e) {
+                log.error("Stop failed id={}", s.getId(), e);
                 throw new RuntimeException(e);
             }
         });
@@ -176,7 +226,7 @@ public class SocketManager {
             try {
                 as.shutdown();
             } catch (Exception ignored) {
-                log.error("{}", ignored.getCause());
+                log.error("Shutdown failed id={}", as.getId(), ignored);
             }
         }
         sockets.clear();
@@ -193,6 +243,7 @@ public class SocketManager {
             try {
                 s.start();
             } catch (InterruptedException e) {
+                log.error("Start socket failed id={}", s.getId(), e);
                 throw new RuntimeException(e);
             }
         });
@@ -209,8 +260,22 @@ public class SocketManager {
             try {
                 s.stop();
             } catch (InterruptedException e) {
+                log.error("Stop socket failed id={}", s.getId(), e);
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private AbstractSocket removeAndShutdown(String id) {
+        AbstractSocket socket = sockets.remove(id);
+        if (socket != null) {
+            try {
+                socket.shutdown();
+            } catch (Exception e) {
+                log.error("Shutdown failed id={}", id, e);
+                throw new RuntimeException(e);
+            }
+        }
+        return socket;
     }
 }

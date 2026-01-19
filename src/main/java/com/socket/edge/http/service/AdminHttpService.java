@@ -14,29 +14,14 @@ public class AdminHttpService {
     private static final Logger log = LoggerFactory.getLogger(AdminHttpService.class);
 
     private SocketManager socketManager;
-    private ChannelCfgProcessor channelCfgProcessor;
-    private ReloadCfgService reloadCfgService;
 
-    public AdminHttpService(SocketManager socketManager, ChannelCfgProcessor channelCfgProcessor, ReloadCfgService reloadCfgService) {
+    public AdminHttpService(SocketManager socketManager) {
         this.socketManager = socketManager;
-        this.channelCfgProcessor = channelCfgProcessor;
-        this.reloadCfgService = reloadCfgService;
-    }
-
-    public void validate() throws IOException {
-        Path path = Path.of(System.getProperty("base.dir"),"conf", "channel.conf");
-        channelCfgProcessor.process(path);
-    }
-
-    public void reload() throws IOException {
-        Path path = Path.of(System.getProperty("base.dir"),"conf", "channel.conf");
-        Metadata newMetadata = channelCfgProcessor.process(path);
-        reloadCfgService.reloadConfig(newMetadata);
     }
 
     public void startSocketById(String id) throws InterruptedException {
         log.info("Start socket by id {}", id);
-        socketManager.start(id);
+        socketManager.startById(id);
     }
 
     public void startSocketByName(String name) {
@@ -46,7 +31,7 @@ public class AdminHttpService {
 
     public void stopSocketById(String id) throws InterruptedException {
         log.info("Stop socket by id {}", id);
-        socketManager.stop(id);
+        socketManager.stopById(id);
     }
 
     public void stopSocketByName(String name) {
