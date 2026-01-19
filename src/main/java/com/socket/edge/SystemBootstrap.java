@@ -85,7 +85,7 @@ public class SystemBootstrap {
         sc = ConfigFactory.parseFile(configPath.toFile()).resolve();
     }
 
-    public void initialize() {
+    public void initializeObject() {
         log.info("System initializing..");
         profileProcessor = new Iso8583ProfileResolver();
         transportProvider = new TransportProvider();
@@ -223,7 +223,7 @@ public class SystemBootstrap {
             long start = System.currentTimeMillis();
             SystemBootstrap bootstrap = new SystemBootstrap(args);
             bootstrap.loadSystemConfiguration();
-            bootstrap.initialize();
+            bootstrap.initializeObject();
             bootstrap.loadChannelConfiguration();
             bootstrap.handleRouterEngine();
             bootstrap.handleSocketConfiguration();
