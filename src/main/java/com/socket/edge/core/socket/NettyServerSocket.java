@@ -10,10 +10,7 @@ import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
 import com.socket.edge.utils.IsoParser;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -46,17 +43,6 @@ public class NettyServerSocket extends AbstractSocket {
         this.forward = forward;
         this.channelPool = new SocketChannelPool(getId(), type, allowlist);
         this.counter = metrics.register(this);
-    }
-
-    @Override
-    public synchronized void start() throws InterruptedException {
-        if (running) {
-            log.warn("{} already running", getId());
-            return;
-        }
-
-        log.info("Start socket server id={}", getId());
-        running = true;
 
         boss = new NioEventLoopGroup(
                 1,
@@ -69,29 +55,45 @@ public class NettyServerSocket extends AbstractSocket {
                         String.format("%s-server-eventloop-worker", getName())
                 )
         );
+    }
 
-        serverChannel = new ServerBootstrap()
-                .group(boss, worker)
-                .channel(NioServerSocketChannel.class)
-                .option(ChannelOption.SO_REUSEADDR, true)
-                .childOption(ChannelOption.SO_KEEPALIVE, true)
-                .childOption(ChannelOption.TCP_NODELAY, true)
-                .childHandler(new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
-                    @Override
-                    protected void initChannel(io.netty.channel.socket.SocketChannel ch) {
-                        ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
-                        ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0,2, 0, 2));
-                        ch.pipeline().addLast(new ByteDecoder());
-                        ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this,counter, parser, forward));
-                        ch.pipeline().addLast(new ByteEncoder());
-                        ch.pipeline().addLast(new LengthFieldPrepender(2));
-                    }
-                })
-                .bind(port)
-                .sync().channel();
+    @Override
+    public synchronized void start() throws InterruptedException {
+        if (running) {
+            log.warn("{} already running", getId());
+            return;
+        }
 
-        startTime = System.currentTimeMillis();
-        log.info("{} listening on {}", getId(), this.port);
+        try {
+            log.info("Start socket server id={}", getId());
+            ChannelFuture future = new ServerBootstrap()
+                    .group(boss, worker)
+                    .channel(NioServerSocketChannel.class)
+                    .option(ChannelOption.SO_REUSEADDR, true)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true)
+                    .childOption(ChannelOption.TCP_NODELAY, true)
+                    .childHandler(new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
+                        @Override
+                        protected void initChannel(io.netty.channel.socket.SocketChannel ch) {
+                            ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
+                            ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
+                            ch.pipeline().addLast(new ByteDecoder());
+                            ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this, counter, parser, forward));
+                            ch.pipeline().addLast(new ByteEncoder());
+                            ch.pipeline().addLast(new LengthFieldPrepender(2));
+                        }
+                    })
+                    .bind(port)
+                    .sync();
+
+            serverChannel = future.channel();
+            running = true;
+            startTime = System.currentTimeMillis();
+            log.info("{} listening on {}", getId(), this.port);
+        } catch (Exception e) {
+            log.error("Failed to bind server socket {}", getId(), e);
+            throw e;
+        }
     }
 
     @Override
@@ -117,7 +119,7 @@ public class NettyServerSocket extends AbstractSocket {
         channelPool.closeAll();
 
         if (serverChannel != null) {
-            serverChannel.close();
+            serverChannel.close().syncUninterruptibly();;
             serverChannel = null;
         }
     }
@@ -127,11 +129,11 @@ public class NettyServerSocket extends AbstractSocket {
         stop();
 
         if (boss != null) {
-            boss.shutdownGracefully();
+            boss.shutdownGracefully().syncUninterruptibly();;
         }
 
         if (worker != null) {
-            worker.shutdownGracefully();
+            worker.shutdownGracefully().syncUninterruptibly();;
         }
     }
 

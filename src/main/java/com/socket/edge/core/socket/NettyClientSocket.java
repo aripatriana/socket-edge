@@ -74,27 +74,31 @@ public class NettyClientSocket extends AbstractSocket {
             return;
         }
 
-        log.info("Start socket client id={}", getId());
-        running = true;
+        try {
+            log.info("Start socket client id={}", getId());
+            bootstrap = new Bootstrap()
+                    .group(group)
+                    .channel(NioSocketChannel.class)
+                    .option(ChannelOption.SO_KEEPALIVE, true)
+                    .handler(new ChannelInitializer<>() {
+                        @Override
+                        protected void initChannel(Channel ch) {
+                            ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
+                            ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
+                            ch.pipeline().addLast(new ByteDecoder());
+                            ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, socketTelemetry, parser, forward));
+                            ch.pipeline().addLast(new ByteEncoder());
+                            ch.pipeline().addLast(new LengthFieldPrepender(2));
+                        }
+                    });
 
-        bootstrap = new Bootstrap()
-                .group(group)
-                .channel(NioSocketChannel.class)
-                .option(ChannelOption.SO_KEEPALIVE, true)
-                .handler(new ChannelInitializer<>() {
-                    @Override
-                    protected void initChannel(Channel ch) {
-                        ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
-                        ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0,2, 0, 2));
-                        ch.pipeline().addLast(new ByteDecoder());
-                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, socketTelemetry, parser, forward));
-                        ch.pipeline().addLast(new ByteEncoder());
-                        ch.pipeline().addLast(new LengthFieldPrepender(2));
-                    }
-                });
-
-        connect();
-        startTime = System.currentTimeMillis();
+            connect();
+            running = true;
+            startTime = System.currentTimeMillis();
+        } catch (Exception e) {
+            log.error("Failed to bind client socket {}", getId(), e);
+            throw e;
+        }
     }
 
     @Override
@@ -119,7 +123,7 @@ public class NettyClientSocket extends AbstractSocket {
         channelPool.closeAll();
 
         if (channel != null) {
-            channel.close();
+            channel.close().syncUninterruptibly();;
             channel = null;
         }
     }
@@ -132,7 +136,7 @@ public class NettyClientSocket extends AbstractSocket {
             scheduler.shutdownNow();
         }
         if (group != null) {
-            group.shutdownGracefully();
+            group.shutdownGracefully().syncUninterruptibly();;
         }
     }
 
