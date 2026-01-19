@@ -37,6 +37,8 @@ public record ChannelCfg (String name,
         ClientChannelDiff clientChannelDiff = oldCfg.client().diffWith(newCfg.client);
 
         return new ChannelCfgDiff(
+                oldCfg,
+                newCfg,
                 changes,
                 serverChannelDiff,
                 clientChannelDiff

@@ -40,6 +40,6 @@ public record SocketEndpoint(
                 SockeEndpointField.PRIORITY,
                 oldOne.priority(), newOne.priority(),
                 ChangeImpact.RESTART);
-        return new SocketEndpointDiff(changes);
+        return new SocketEndpointDiff(oldOne, newOne, changes);
     }
 }

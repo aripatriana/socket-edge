@@ -74,6 +74,8 @@ public record Metadata (
                         .toList();
 
         return new MetadataDiff(
+                oldMd,
+                newMd,
                 added,
                 removed,
                 modified,

@@ -55,6 +55,6 @@ public record ClientChannel(
                         .filter(SocketEndpointDiff::hasChanges)
                         .toList();
 
-        return new ClientChannelDiff(changes, added, removed, modified);
+        return new ClientChannelDiff(oldOne, newOne, changes, added, removed, modified);
     };
 }
