@@ -1,16 +1,19 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.constant.SocketState;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.ForwardService;
 import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
-import com.socket.edge.constant.SocketState;
-import com.socket.edge.constant.SocketType;
 import com.socket.edge.utils.ByteDecoder;
 import com.socket.edge.utils.ByteEncoder;
 import com.socket.edge.utils.IsoParser;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
@@ -20,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class NettyServerSocket extends AbstractSocket {
 

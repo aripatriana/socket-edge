@@ -1,6 +1,5 @@
 package com.socket.edge.core;
 
-import org.apache.camel.spi.ExecutorServiceManager;
 import org.apache.camel.spi.ThreadPoolFactory;
 import org.apache.camel.spi.ThreadPoolProfile;
 

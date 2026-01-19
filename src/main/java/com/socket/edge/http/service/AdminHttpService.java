@@ -1,13 +1,8 @@
 package com.socket.edge.http.service;
 
-import com.socket.edge.core.ChannelCfgProcessor;
 import com.socket.edge.core.socket.SocketManager;
-import com.socket.edge.model.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.nio.file.Path;
 
 public class AdminHttpService {
 

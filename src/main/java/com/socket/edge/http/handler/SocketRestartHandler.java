@@ -1,6 +1,5 @@
 package com.socket.edge.http.handler;
 
-import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.utils.JsonUtil;
 import io.netty.buffer.Unpooled;
