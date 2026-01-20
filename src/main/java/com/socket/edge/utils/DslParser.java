@@ -297,9 +297,7 @@ public final class DslParser {
             }
 
             else if (line.startsWith("strategy")) {
-                strategy = Strategy.valueOf(
-                        line.split("\\s+")[1].toUpperCase()
-                ).name().toLowerCase();
+                strategy = line.split("\\s+")[1].toLowerCase();
             }
         }
 
