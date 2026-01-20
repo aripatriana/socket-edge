@@ -50,6 +50,12 @@ public class NettyClientSocket extends AbstractSocket {
         super(String.format("%s-client-%s-%d",name, se.host(),se.port()), name);
         this.host = se.host();
         this.port = se.port();
+        this.parser = parser;
+        this.forward = forward;
+        this.channelPool = new SocketChannelPool(getId(), type, Collections.singletonList(se));
+        this.telemetryRegistry = telemetryRegistry;
+        this.socketTelemetry = telemetryRegistry.register(this);
+
         this.group = new NioEventLoopGroup(
                 1,
                 new DefaultThreadFactory(
@@ -62,10 +68,6 @@ public class NettyClientSocket extends AbstractSocket {
                         String.format("%s-client-reconnect", name)
                 )
         );
-        this.parser = parser;
-        this.forward = forward;
-        this.channelPool = new SocketChannelPool(getId(), type, Collections.singletonList(se));
-        this.socketTelemetry = telemetryRegistry.register(this);
     }
 
     @Override

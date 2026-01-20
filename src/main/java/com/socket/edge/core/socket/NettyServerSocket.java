@@ -43,6 +43,7 @@ public class NettyServerSocket extends AbstractSocket {
         this.parser = parser;
         this.forward = forward;
         this.channelPool = new SocketChannelPool(getId(), type, allowlist);
+        this.telemetryRegistry = telemetryRegistry;
         this.socketTelemetry = telemetryRegistry.register(this);
 
         boss = new NioEventLoopGroup(
