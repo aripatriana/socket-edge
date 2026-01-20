@@ -187,7 +187,7 @@ public class NettyClientSocket extends AbstractSocket {
         }
 
         this.channel = null;
-        channelPool.unregister(disconnected);
+        channelPool.removeChannel(disconnected);
 
         log.info("{} disconnected", getId());
 
