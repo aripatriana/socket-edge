@@ -31,9 +31,9 @@ public class ReloadConfigHandler implements HttpServiceHandler {
             reloadCfgService.reload();
             result.put("status", "OK");
         } catch (Exception e) {
-            log.error("Error {}", e.getCause());
+            log.error("Failed to reload configuration {}", e.getCause().getMessage());
             result.put("status", "FAILED");
-            result.put("message", e.getMessage());
+            result.put("message", e.getCause().getMessage());
         }
         FullHttpResponse resp = new DefaultFullHttpResponse(
                 HttpVersion.HTTP_1_1,

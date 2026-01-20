@@ -33,9 +33,9 @@ public class ValidateConfigHandler implements HttpServiceHandler {
             result.put("status", "OK");
             result.put("message", md.hasChanges() ? md.toString(new StringBuffer()) : "No changes detected");
         } catch (Exception e) {
-            log.error("Error {}", e.getCause());
+            log.error("Failed to validate configuration ", e.getCause());
             result.put("status", "FAILED");
-            result.put("message", e.getMessage());
+            result.put("message", e.getCause().getMessage());
         }
 
         FullHttpResponse resp = new DefaultFullHttpResponse(
