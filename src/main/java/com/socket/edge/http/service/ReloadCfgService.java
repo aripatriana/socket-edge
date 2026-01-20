@@ -174,8 +174,8 @@ public class ReloadCfgService {
         // Added endpoints
         serverDiff.addedEndpoints().forEach(endpoint -> {
             log.info("Server endpoint added: {}:{}", endpoint.host(), endpoint.port());
-            AbstractSocket socket = socketManager.createClientSockets(newCfg, endpoint);
-            socketManager.start(socket);
+//            AbstractSocket socket = socketManager.create(newCfg, endpoint);
+//            socketManager.start(socket);
         });
 
         serverDiff.modifiedEndpoints().forEach(diff -> {
