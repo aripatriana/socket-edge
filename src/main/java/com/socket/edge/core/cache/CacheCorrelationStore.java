@@ -2,9 +2,7 @@ package com.socket.edge.core.cache;
 
 import com.socket.edge.model.ReplyInbound;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class CacheCorrelationStore implements CorrelationStore {
 
@@ -14,16 +12,24 @@ public class CacheCorrelationStore implements CorrelationStore {
 
         Entry(ReplyInbound ch, long ttlMs) {
             this.channel = ch;
-            this.expireAt = System.currentTimeMillis() + ttlMs;
+            this.expireAt = System.nanoTime()
+                    + TimeUnit.MILLISECONDS.toNanos(ttlMs);
+        }
+
+        boolean expired(long now) {
+            return now > expireAt;
         }
     }
 
     private final long ttlMs;
-    private final ConcurrentHashMap<String, Entry> store =
-            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Entry> store = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService cleaner;
 
     public CacheCorrelationStore(long ttlMs) {
         this.ttlMs = ttlMs;
+        this.cleaner = Executors.newSingleThreadScheduledExecutor(
+                r -> new Thread(r, "correlation-cleaner")
+        );
         startCleanup();
     }
 
@@ -37,8 +43,9 @@ public class CacheCorrelationStore implements CorrelationStore {
         Entry e = store.get(key);
         if (e == null) return null;
 
-        if (System.currentTimeMillis() > e.expireAt) {
-            store.remove(key);
+        long now = System.nanoTime();
+        if (e.expired(now)) {
+            store.remove(key, e);
             return null;
         }
         return e.channel;
@@ -50,13 +57,16 @@ public class CacheCorrelationStore implements CorrelationStore {
     }
 
     private void startCleanup() {
+        long interval = Math.min(ttlMs, TimeUnit.SECONDS.toMillis(30));
 
-        Executors.newSingleThreadScheduledExecutor()
-                .scheduleAtFixedRate(() -> {
-                    long now = System.currentTimeMillis();
-                    store.entrySet().removeIf(
-                            e -> now > e.getValue().expireAt
-                    );
-                }, ttlMs, ttlMs, TimeUnit.MILLISECONDS);
+        cleaner.scheduleAtFixedRate(() -> {
+            long now = System.nanoTime();
+            store.entrySet().removeIf(e -> e.getValue().expired(now));
+        }, interval, interval, TimeUnit.MILLISECONDS);
+    }
+
+    public void shutdown() {
+        cleaner.shutdown();
     }
 }
+
