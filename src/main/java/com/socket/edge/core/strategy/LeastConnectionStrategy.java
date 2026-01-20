@@ -11,8 +11,11 @@ public class LeastConnectionStrategy<T extends LoadAware>
 
     @Override
     public T next(List<T> candidates, MessageContext messageContext) {
+        validate(candidates);
+
         return candidates.stream()
-                .min(Comparator.comparingInt(LoadAware::inflight))
+                .min(Comparator.comparingInt(LoadAware::inflight)
+                        .thenComparingInt(Object::hashCode))
                 .orElseThrow(() ->
                         new IllegalStateException("No candidates"));
     }

@@ -13,32 +13,28 @@ public final class RoundRobinStrategy<T extends WeightedCandidate>
 
     @Override
     public T next(List<T> candidates, MessageContext messageContext) {
-        if (candidates == null || candidates.isEmpty()) {
-            throw new IllegalStateException("No candidates available");
-        }
+        validate(candidates);
 
-        // 1. Cari priority tertinggi
         int highestPriority = candidates.stream()
                 .mapToInt(WeightedCandidate::getPriority)
                 .max()
                 .orElseThrow();
 
-        // 2. Filter kandidat dengan priority tertinggi
-        List<T> priorityCandidates = candidates.stream()
+        List<T> list = candidates.stream()
                 .filter(c -> c.getPriority() == highestPriority)
                 .toList();
 
-        // 3. Bangun weighted list
-        List<T> weightedList = new ArrayList<>();
-        for (T candidate : priorityCandidates) {
-            int weight = Math.max(1, candidate.getWeight());
-            for (int i = 0; i < weight; i++) {
-                weightedList.add(candidate);
-            }
+        int totalWeight = list.stream()
+                .mapToInt(c -> Math.max(1, c.getWeight()))
+                .sum();
+
+        int pos = Math.floorMod(index.getAndIncrement(), totalWeight);
+
+        for (T c : list) {
+            pos -= Math.max(1, c.getWeight());
+            if (pos < 0) return c;
         }
 
-        // 4. Round robin
-        int i = Math.abs(index.getAndIncrement());
-        return weightedList.get(i % weightedList.size());
+        throw new IllegalStateException("Weighted selection failed");
     }
 }

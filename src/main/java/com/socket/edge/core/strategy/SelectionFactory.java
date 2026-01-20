@@ -1,19 +1,36 @@
 package com.socket.edge.core.strategy;
 
+import com.socket.edge.core.LoadAware;
+import com.socket.edge.core.MessageContext;
+
 import java.util.Objects;
+import java.util.function.Function;
 
 public class SelectionFactory {
 
-    public static SelectionStrategy create(String strategy, String...args) {
-        Objects.requireNonNull(strategy, "Strategy is null");
-        if (strategy.equalsIgnoreCase("roundrobin")) {
-            return new RoundRobinStrategy();
-        } else if (strategy.equalsIgnoreCase("least")) {
-            return new LeastConnectionStrategy();
-        } else if (strategy.equalsIgnoreCase("hash")) {
-            Objects.requireNonNull(args, "Argument strategy required");
-            return new HashStrategy<>(ctx -> ctx.field(args[0]));
-        }
-        throw new IllegalArgumentException("No strategy found");
+    public static <T extends WeightedCandidate> SelectionStrategy<T> roundRobin() {
+        return new RoundRobinStrategy<>();
     }
+
+    public static <T extends LoadAware> SelectionStrategy<T> leastConnection() {
+        return new LeastConnectionStrategy<>();
+    }
+
+    public static <T> SelectionStrategy<T> hash(
+            Function<MessageContext, String> keyExtractor) {
+        return new HashStrategy<>(keyExtractor);
+    }
+
+    public static <T> SelectionStrategy<T> create(
+            String strategy,
+            Function<MessageContext, String> keyExtractor) {
+
+        return switch (strategy.toLowerCase()) {
+            case "roundrobin" -> (SelectionStrategy<T>) roundRobin();
+            case "least" -> (SelectionStrategy<T>) leastConnection();
+            case "hash" -> hash(keyExtractor);
+            default -> throw new IllegalArgumentException("Unknown strategy: " + strategy);
+        };
+    }
+
 }

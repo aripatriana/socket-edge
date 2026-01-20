@@ -11,7 +11,7 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class MessageContext {
+public class MessageContext {
 
     private String socketId;
     private String channelName;
