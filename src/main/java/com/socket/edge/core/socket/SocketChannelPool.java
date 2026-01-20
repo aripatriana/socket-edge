@@ -24,7 +24,7 @@ public class SocketChannelPool {
         this.allowlist = allowlist;
     }
 
-    public boolean register(Channel ch) {
+    public boolean addChannel(Channel ch) {
         String remoteIp =
                 ((InetSocketAddress) ch.remoteAddress())
                         .getAddress()
@@ -57,7 +57,7 @@ public class SocketChannelPool {
         return true;
     }
 
-    public void unregister(Channel ch) {
+    public void removeChannel(Channel ch) {
         activeChannels.remove(ch.id());
     }
 

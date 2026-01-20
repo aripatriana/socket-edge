@@ -38,7 +38,7 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
                 (InetSocketAddress) ch.remoteAddress();
         InetSocketAddress local =
                 (InetSocketAddress) ch.localAddress();
-        if (channelPool.register(ch)) {
+        if (channelPool.addChannel(ch)) {
             log.info(
                     "CHANNEL ACTIVE | id={} | remote={}:{} | local={}:{} | thread={}",
                     ch.id().asShortText(),
@@ -65,7 +65,7 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
         Channel ch = ctx.channel();
-        channelPool.unregister(ch);
+        channelPool.removeChannel(ch);
 
         InetSocketAddress remote =
                 (InetSocketAddress) ch.remoteAddress();
