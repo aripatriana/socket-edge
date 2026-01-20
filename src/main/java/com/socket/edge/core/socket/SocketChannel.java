@@ -29,6 +29,14 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
         this.se = se;
     }
 
+    public void setSocketEndpoint(SocketEndpoint se) {
+        this.se = se;
+    }
+
+    public SocketEndpoint getSocketEndpoint() {
+        return se;
+    }
+
     public Channel channel() {
         return channel;
     }

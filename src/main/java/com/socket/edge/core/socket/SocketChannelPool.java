@@ -1,27 +1,29 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.model.EndpointKey;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.constant.SocketType;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class SocketChannelPool {
 
     private String socketId;
     private SocketType socketType;
-    private final Map<ChannelId, SocketChannel> activeChannels = new HashMap<>();
+    private final ConcurrentMap<ChannelId, SocketChannel> activeChannels = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EndpointKey, Set<SocketChannel>> endpointIndex = new ConcurrentHashMap<>();
+
     private List<SocketEndpoint> allowlist = new ArrayList<>();
 
     public SocketChannelPool(String socketId, SocketType socketType, List<SocketEndpoint> allowlist) {
         this.socketId = socketId;
         this.socketType = socketType;
-        this.allowlist = allowlist;
+        this.allowlist = List.copyOf(allowlist);;
     }
 
     public boolean addChannel(Channel ch) {
@@ -40,29 +42,76 @@ public class SocketChannelPool {
                 ((InetSocketAddress) ch.remoteAddress())
                         .getPort();
 
-        SocketEndpoint se =
-                socketType.equals(SocketType.SOCKET_SERVER)
-                        ? allowlist.stream()
-                        .filter(ep -> remoteIp.equals(ep.host()))
-                        .findFirst()
-                        .orElse(null)
-                        : allowlist.stream()
-                        .filter(ep ->
-                                remoteIp.equals(ep.host()) && remotePort == ep.port()
-                        )
-                        .findFirst()
-                        .orElse(null);
+        SocketEndpoint se = resolveEndpoint(remoteIp, remotePort);
+        if (se == null) {
+            ch.close();
+            return false;
+        }
 
-        activeChannels.putIfAbsent(ch.id(), new SocketChannel(socketId, ch, se));
+        SocketChannel sc = new SocketChannel(socketId, ch, se);
+        SocketChannel existing = activeChannels.putIfAbsent(ch.id(), sc);
+        if (existing != null) {
+            return false;
+        }
+        endpointIndex
+                .computeIfAbsent(EndpointKey.from(se), k -> ConcurrentHashMap.newKeySet())
+                .add(sc);
         return true;
     }
 
+    private SocketEndpoint resolveEndpoint(String ip, int port) {
+        return socketType == SocketType.SOCKET_SERVER
+                ? allowlist.stream()
+                .filter(ep -> ip.equals(ep.host()))
+                .findFirst()
+                .orElse(null)
+                : allowlist.stream()
+                .filter(ep -> ip.equals(ep.host()) && port == ep.port())
+                .findFirst()
+                .orElse(null);
+    }
+
+    public int removeByEndpoint(SocketEndpoint se) {
+        EndpointKey key = EndpointKey.from(se);
+        Set<SocketChannel> channels = endpointIndex.remove(key);
+
+        if (channels == null || channels.isEmpty()) {
+            return 0;
+        }
+
+        channels.forEach(sc -> {
+            activeChannels.remove(sc.channelId());
+            if (sc.isActive()) {
+                sc.close();
+            }
+        });
+
+        return channels.size();
+    }
+
     public void removeChannel(Channel ch) {
-        activeChannels.remove(ch.id());
+        SocketChannel sc = activeChannels.remove(ch.id());
+        if (sc == null) {
+            return;
+        }
+
+        EndpointKey key = endpointKey(sc.getSocketEndpoint());
+        Set<SocketChannel> set = endpointIndex.get(key);
+
+        if (set != null) {
+            set.remove(sc);
+            if (set.isEmpty()) {
+                endpointIndex.remove(key);
+            }
+        }
     }
 
     public SocketChannel get(Channel ch) {
         return activeChannels.get(ch.id());
+    }
+
+    public Set<SocketChannel> getAllByEndpoint(SocketEndpoint se) {
+        return endpointIndex.getOrDefault(EndpointKey.from(se), Set.of());
     }
 
     public List<SocketChannel> activeChannels() {
@@ -75,6 +124,13 @@ public class SocketChannelPool {
         return activeChannels.values().stream().toList();
     }
 
+    private EndpointKey endpointKey(SocketEndpoint se) {
+        if (se == null) {
+            throw new IllegalStateException("SocketEndpoint cannot be null");
+        }
+        return EndpointKey.from(se);
+    }
+
     public void closeAll() {
         activeChannels.values().forEach(ch -> {
             if (ch.isActive()) {
@@ -82,6 +138,7 @@ public class SocketChannelPool {
             }
         });
         activeChannels.clear();
+        endpointIndex.clear();
     }
 
 }
