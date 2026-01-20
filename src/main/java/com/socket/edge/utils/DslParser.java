@@ -36,7 +36,17 @@ public final class DslParser {
             int nameEnd = idx + keyword.length();
 
             // ⬇️ CARI '{' SETELAH keyword
+            int lineEnd = content.indexOf("\n", idx);
+            if (lineEnd == -1) {
+                lineEnd = content.length();
+            }
+
             int braceIdx = content.indexOf("{", nameEnd);
+            if (braceIdx == -1 || braceIdx > lineEnd) {
+                // '{' tidak ada di baris header → bukan block
+                idx += keyword.length();
+                continue;
+            }
 
             // ❗ FIX UTAMA: kalau tidak ada '{', ini BUKAN block
             if (braceIdx == -1) {
