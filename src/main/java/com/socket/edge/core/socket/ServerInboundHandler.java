@@ -88,7 +88,7 @@ public final class ServerInboundHandler
     ) {
         // TODO harus ada handling proper
         log.error("{} exception occured {}", serverSocket.getId(), cause);
-        serverSocket.channelPool().unregister(ctx.channel());
+        serverSocket.channelPool().removeChannel(ctx.channel());
         ctx.close();
     }
 }

@@ -27,10 +27,10 @@ public record ClientChannel(
                 ChangeImpact.LIVE);
 
         // 2. Map endpoint by ID
-        Map<String, SocketEndpoint> oldMap = this.endpoints.stream()
+        Map<EndpointKey, SocketEndpoint> oldMap = this.endpoints.stream()
                 .collect(Collectors.toMap(SocketEndpoint::id, e -> e));
 
-        Map<String, SocketEndpoint> newMap = newOne.endpoints.stream()
+        Map<EndpointKey, SocketEndpoint> newMap = newOne.endpoints.stream()
                 .collect(Collectors.toMap(SocketEndpoint::id, e -> e));
 
         // 3. Added

@@ -25,8 +25,8 @@ public record SocketEndpoint(
         return priority;
     }
 
-    public String id() {
-        return host + ":" + port;
+    public EndpointKey id() {
+        return EndpointKey.from(this);
     }
 
     public SocketEndpointDiff diffWith(SocketEndpoint newOne) {
