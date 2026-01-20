@@ -4,6 +4,7 @@ import com.socket.edge.constant.Direction;
 import com.socket.edge.model.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public final class DslParser {
 
@@ -74,7 +75,7 @@ public final class DslParser {
         return extractBlocks(content, "channel")
             .stream()
                 .map(b -> parseSingleChannel(b.body()))
-                .toList();
+                .collect(Collectors.toList());
     }
 
     private ChannelCfg parseSingleChannel(String block) {
