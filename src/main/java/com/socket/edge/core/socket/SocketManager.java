@@ -221,7 +221,7 @@ public class SocketManager {
     }
 
     public void startAll() {
-        startAll((List<AbstractSocket>) sockets.values());
+        startAll(List.copyOf(sockets.values()));
     }
 
     public void startAll(List<AbstractSocket> list) {
