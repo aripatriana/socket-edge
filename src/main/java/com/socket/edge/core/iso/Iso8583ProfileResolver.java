@@ -30,8 +30,20 @@ public final class Iso8583ProfileResolver {
             MessageContext ctx,
             Iso8583Profile profile
     ) {
-        return ctx.getChannelCfg().name() + "|" +profile.correlationFields().stream()
-                .map(ctx::field)
+        String channel = ctx.getChannelCfg().name();
+
+        String key = profile.correlationFields().stream()
+                .map(f -> {
+                    String val = ctx.field(f);
+                    if (val == null) {
+                        throw new IllegalStateException(
+                                "Correlation field missing: " + f + ", channel=" + channel
+                        );
+                    }
+                    return val;
+                })
                 .collect(Collectors.joining("|"));
+
+        return channel + "|" + key;
     }
 }
