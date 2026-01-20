@@ -1,14 +1,17 @@
 package com.socket.edge.http.service;
 
 import com.socket.edge.core.ChannelCfgProcessor;
+import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketManager;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.model.helper.MetadataDiff;
+import com.socket.edge.utils.CommonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 
 public class ReloadCfgService {
@@ -65,7 +68,8 @@ public class ReloadCfgService {
 
             metadataDiff.addedChannelCfgs().forEach(cfg -> {
                 log.info("Added channel config detected for channel: {}", cfg.name());
-                socketManager.createSocket(cfg);
+                List<AbstractSocket> sockets = socketManager.createSocket(cfg);
+                socketManager.startAll(sockets);
             });
 
             metadataDiff.modifiedChannelCfg().forEach(k -> {
@@ -74,7 +78,8 @@ public class ReloadCfgService {
                 });
 
                 k.clientChannelDiff().addedEndpoints().forEach(endpoint -> {
-                    socketManager.createClientSockets(k.newCfg(), endpoint);
+                    AbstractSocket socket = socketManager.createClientSockets(k.newCfg(), endpoint);
+                    socketManager.start(socket);
                 });
             });
 

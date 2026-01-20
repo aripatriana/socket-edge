@@ -33,15 +33,19 @@ public class SocketManager {
         this.forwardService = forwardService;
     }
 
-    public void createSocket(ChannelCfg cfg) {
+    public List<AbstractSocket> createSocket(ChannelCfg cfg) {
         Objects.requireNonNull(cfg, "ChannelCfg required");
 
-        createServerSocket(cfg);
-        createClientSockets(cfg);
+        List<AbstractSocket> list = new ArrayList<>();
+        list.add(createServerSocket(cfg));
+        list.addAll(createClientSockets(cfg));
+        return list;
     }
 
-    private void createServerSocket(ChannelCfg cfg) {
-        if (cfg.server() == null) return;
+    private AbstractSocket createServerSocket(ChannelCfg cfg) {
+        if (cfg.server() == null) {
+            return null;
+        }
 
         NettyServerSocket serverSocket = new NettyServerSocket(
                 cfg.name(),
@@ -59,10 +63,14 @@ public class SocketManager {
         } else {
             log.warn("Server socket already exists id={}", serverSocket.getId());
         }
+
+        return serverSocket;
     }
 
-    public void createClientSockets(ChannelCfg cfg) {
-        if (cfg.client() == null || cfg.client().endpoints().isEmpty()) return;
+    public <T extends  AbstractSocket> List<T> createClientSockets(ChannelCfg cfg) {
+        if (cfg.client() == null || cfg.client().endpoints().isEmpty()) {
+            return List.of();
+        }
 
         List<NettyClientSocket> registered = new ArrayList<>();
 
@@ -87,10 +95,14 @@ public class SocketManager {
         if (!registered.isEmpty()) {
             transportRegister.registerClientTransport(cfg, registered);
         }
+
+        return (List<T>) registered;
     }
 
-    public void createClientSockets(ChannelCfg cfg, SocketEndpoint se) {
-        if (cfg.client() == null || cfg.client().endpoints().isEmpty() || se == null) return;
+    public AbstractSocket createClientSockets(ChannelCfg cfg, SocketEndpoint se) {
+        if (cfg.client() == null || cfg.client().endpoints().isEmpty() || se == null) {
+            return null;
+        }
 
         NettyClientSocket clientSocket = new NettyClientSocket(
                 cfg.name(),
@@ -107,6 +119,7 @@ public class SocketManager {
         } else {
             log.warn("Client socket already exists id={}", clientSocket.getId());
         }
+        return clientSocket;
     }
 
     public void destroyServerSocket(ChannelCfg cfg, SocketEndpoint se) {
@@ -156,10 +169,7 @@ public class SocketManager {
         return sockets.get(id);
     }
 
-    public void startById(String id) throws InterruptedException {
-        log.info("Start socket by id {}", id);
-        Objects.requireNonNull(id, "Required id");
-        AbstractSocket socket = sockets.get(id);
+    public void start(AbstractSocket socket) {
         Objects.requireNonNull(socket, "Object socket null");
         try {
             socket.start();
@@ -169,9 +179,14 @@ public class SocketManager {
         }
     }
 
-    public void stopById(String id) throws InterruptedException {
-        Objects.requireNonNull(id, "Required name");
+    public void startById(String id) throws InterruptedException {
+        log.info("Start socket by id {}", id);
+        Objects.requireNonNull(id, "Required id");
         AbstractSocket socket = sockets.get(id);
+        start(socket);
+    }
+
+    public void stop(AbstractSocket socket) {
         Objects.requireNonNull(socket, "Object socket null");
         try {
             socket.stop();
@@ -179,6 +194,12 @@ public class SocketManager {
             log.error("Stop failed id={}", socket.getId(), e);
             throw new RuntimeException(e);
         }
+    }
+
+    public void stopById(String id) throws InterruptedException {
+        Objects.requireNonNull(id, "Required name");
+        AbstractSocket socket = sockets.get(id);
+        stop(socket);
     }
 
     public void restart(String id) throws InterruptedException {
@@ -200,7 +221,11 @@ public class SocketManager {
     }
 
     public void startAll() {
-        sockets.values().forEach(s -> {
+        startAll((List<AbstractSocket>) sockets.values());
+    }
+
+    public void startAll(List<AbstractSocket> list) {
+        list.forEach(s -> {
             try {
                 s.start();
             } catch (InterruptedException e) {
@@ -210,8 +235,8 @@ public class SocketManager {
         });
     }
 
-    public void stopAll() {
-        sockets.values().forEach(s -> {
+    public void stopAll(List<AbstractSocket> list) {
+        list.forEach(s -> {
             try {
                 s.stop();
             } catch (InterruptedException e) {
@@ -219,6 +244,10 @@ public class SocketManager {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public void stopAll() {
+        stopAll((List<AbstractSocket>) sockets.values());
     }
 
     public void destroyAll() {
