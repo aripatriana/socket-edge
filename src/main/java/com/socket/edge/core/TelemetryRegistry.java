@@ -24,6 +24,10 @@ public class TelemetryRegistry {
                 k -> new SocketTelemetry(registry, socket));
     }
 
+    public SocketTelemetry unregister(AbstractSocket socket) {
+        return map.remove(socket.getId());
+    }
+
     public Metrics getMetric(String id) {
         SocketTelemetry m = map.get(id);
         return m == null ? null : m.getMetrics();

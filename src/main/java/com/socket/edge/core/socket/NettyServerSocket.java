@@ -34,15 +34,16 @@ public class NettyServerSocket extends AbstractSocket {
     private ForwardService forward;
     private SocketChannelPool channelPool;
     private SocketType type = SocketType.SOCKET_SERVER;
-    private SocketTelemetry counter;
+    private SocketTelemetry socketTelemetry;
+    private TelemetryRegistry telemetryRegistry;
 
-    public NettyServerSocket(String name, int port, List<SocketEndpoint> allowlist, TelemetryRegistry metrics, IsoParser parser, ForwardService forward) {
+    public NettyServerSocket(String name, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
         super(String.format("%s-server-%d",name, port), name);
         this.port = port;
         this.parser = parser;
         this.forward = forward;
         this.channelPool = new SocketChannelPool(getId(), type, allowlist);
-        this.counter = metrics.register(this);
+        this.socketTelemetry = telemetryRegistry.register(this);
 
         boss = new NioEventLoopGroup(
                 1,
@@ -78,7 +79,7 @@ public class NettyServerSocket extends AbstractSocket {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                             ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
                             ch.pipeline().addLast(new ByteDecoder());
-                            ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this, counter, parser, forward));
+                            ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this, socketTelemetry, parser, forward));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
                         }
@@ -127,7 +128,7 @@ public class NettyServerSocket extends AbstractSocket {
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
-
+        telemetryRegistry.unregister(this);
         if (boss != null) {
             boss.shutdownGracefully();
         }

@@ -44,8 +44,9 @@ public class NettyClientSocket extends AbstractSocket {
     private SocketChannelPool channelPool;
     private SocketType type = SocketType.SOCKET_CLIENT;
     private SocketTelemetry socketTelemetry;
+    private TelemetryRegistry telemetryRegistry;
 
-    public NettyClientSocket(String name, SocketEndpoint se, TelemetryRegistry metricService, IsoParser parser, ForwardService forward) {
+    public NettyClientSocket(String name, SocketEndpoint se, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
         super(String.format("%s-client-%s-%d",name, se.host(),se.port()), name);
         this.host = se.host();
         this.port = se.port();
@@ -64,7 +65,7 @@ public class NettyClientSocket extends AbstractSocket {
         this.parser = parser;
         this.forward = forward;
         this.channelPool = new SocketChannelPool(getId(), type, Collections.singletonList(se));
-        this.socketTelemetry = metricService.register(this);
+        this.socketTelemetry = telemetryRegistry.register(this);
     }
 
     @Override
@@ -131,7 +132,7 @@ public class NettyClientSocket extends AbstractSocket {
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
-
+        telemetryRegistry.unregister(this);
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
