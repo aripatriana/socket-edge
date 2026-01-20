@@ -93,8 +93,8 @@ public class NettyClientSocket extends AbstractSocket {
                         }
                     });
 
-            connect();
             running = true;
+            connect();
             startTime = System.currentTimeMillis();
         } catch (Exception e) {
             log.error("Failed to bind client socket {}", getId(), e);
