@@ -1,9 +1,14 @@
 package com.socket.edge.core;
 
+import com.socket.edge.constant.SocketState;
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.socket.AbstractSocket;
+import com.socket.edge.core.socket.SocketChannelPool;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.RuntimeState;
+import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,13 +27,15 @@ class TelemetryRegistryTest {
 
     @BeforeEach
     void setup() {
-        meterRegistry = mock(MeterRegistry.class);
+        meterRegistry = new SimpleMeterRegistry();
         telemetryRegistry = new TelemetryRegistry(meterRegistry);
     }
 
-    private AbstractSocket socket(String id) {
+    private AbstractSocket socket(String id, String name, SocketType type) {
         AbstractSocket socket = mock(AbstractSocket.class);
         when(socket.getId()).thenReturn(id);
+        when(socket.getName()).thenReturn(name);
+        when(socket.getType()).thenReturn(type);
         return socket;
     }
 
@@ -39,18 +46,19 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("register() should create telemetry on first call")
     void register_firstTime() {
-        AbstractSocket socket = socket("A");
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
 
         SocketTelemetry telemetry = telemetryRegistry.register(socket);
 
         assertThat(telemetry).isNotNull();
+        assertThat(meterRegistry.getMeters()).isNotEmpty();
     }
 
     @Test
     @DisplayName("register() should be idempotent for same socket id")
     void register_idempotent() {
-        AbstractSocket socket1 = socket("A");
-        AbstractSocket socket2 = socket("A");
+        AbstractSocket socket1 = socket("A", "fello", SocketType.SERVER);
+        AbstractSocket socket2 = socket("A", "fello", SocketType.SERVER);
 
         SocketTelemetry t1 = telemetryRegistry.register(socket1);
         SocketTelemetry t2 = telemetryRegistry.register(socket2);
@@ -65,7 +73,7 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("unregister() should remove telemetry and return it")
     void unregister_existing() {
-        AbstractSocket socket = socket("A");
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
 
         SocketTelemetry registered = telemetryRegistry.register(socket);
         SocketTelemetry removed = telemetryRegistry.unregister(socket);
@@ -77,7 +85,7 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("unregister() should return null if socket not registered")
     void unregister_missing() {
-        AbstractSocket socket = socket("X");
+        AbstractSocket socket = socket("X", "fello", SocketType.SERVER);
 
         SocketTelemetry removed = telemetryRegistry.unregister(socket);
 
@@ -91,16 +99,15 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("getMetric() should return metric for registered socket")
     void getMetric_existing() {
-        AbstractSocket socket = socket("A");
-        SocketTelemetry telemetry = spy(telemetryRegistry.register(socket));
-
-        Metrics metrics = mock(Metrics.class);
-        when(metrics.id()).thenReturn("A");
-        doReturn(metrics).when(telemetry).getMetrics();
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+        telemetryRegistry.register(socket);
 
         Metrics result = telemetryRegistry.getMetric("A");
 
-        assertThat(result).isSameAs(metrics);
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo("A");
+        assertThat(result.name()).isEqualTo("fello");
+        assertThat(result.type()).isEqualTo("SERVER");
     }
 
     @Test
@@ -116,8 +123,8 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("getAllMetrics() should return sorted metrics by id")
     void getAllMetrics_sorted() {
-        AbstractSocket s1 = socket("B");
-        AbstractSocket s2 = socket("A");
+        AbstractSocket s1 = socket("B", "fello", SocketType.SERVER);
+        AbstractSocket s2 = socket("A", "fello", SocketType.SERVER);
 
         SocketTelemetry t1 = spy(telemetryRegistry.register(s1));
         SocketTelemetry t2 = spy(telemetryRegistry.register(s2));
@@ -150,24 +157,33 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("getRuntimeState() should return runtime state for registered socket")
     void getRuntimeState_existing() {
-        AbstractSocket socket = socket("A");
-        SocketTelemetry telemetry = spy(telemetryRegistry.register(socket));
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+        when(socket.getState()).thenReturn(SocketState.UP);
 
-        RuntimeState state = mock(RuntimeState.class);
-        when(state.id()).thenReturn("A");
-        doReturn(state).when(telemetry).getRuntimeState();
+        SocketTelemetry telemetry = spy(telemetryRegistry.register(socket));
+        SocketChannelPool pool = mock(SocketChannelPool.class);
+        when(socket.channelPool()).thenReturn(pool);
 
         RuntimeState result = telemetryRegistry.getRuntimeState("A");
 
-        assertThat(result).isSameAs(state);
+        assertThat(result.id()).isEqualTo("A");
     }
 
     @Test
     @DisplayName("getAllRuntimeState() should return sorted runtime states")
     void getAllRuntimeState_sorted() {
-        AbstractSocket s1 = socket("C");
-        AbstractSocket s2 = socket("A");
-        AbstractSocket s3 = socket("B");
+        AbstractSocket s1 = socket("C", "fello", SocketType.SERVER);
+        AbstractSocket s2 = socket("A", "fello", SocketType.SERVER);
+        AbstractSocket s3 = socket("B", "fello", SocketType.SERVER);
+
+        when(s1.getState()).thenReturn(SocketState.UP);
+        when(s2.getState()).thenReturn(SocketState.UP);
+        when(s3.getState()).thenReturn(SocketState.UP);
+
+        SocketChannelPool pool = mock(SocketChannelPool.class);
+        when(s1.channelPool()).thenReturn(pool);
+        when(s2.channelPool()).thenReturn(pool);
+        when(s3.channelPool()).thenReturn(pool);
 
         SocketTelemetry t1 = spy(telemetryRegistry.register(s1));
         SocketTelemetry t2 = spy(telemetryRegistry.register(s2));
@@ -201,7 +217,7 @@ class TelemetryRegistryTest {
         int threads = 20;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
-        AbstractSocket socket = socket("CONCURRENT");
+        AbstractSocket socket = socket("CONCURRENT", "fello", SocketType.SERVER);
 
         List<Callable<SocketTelemetry>> tasks =
                 IntStream.range(0, threads)
@@ -219,4 +235,70 @@ class TelemetryRegistryTest {
 
         executor.shutdown();
     }
+
+    @Test
+    @DisplayName("register() should return same telemetry for same socket id")
+    void register_shouldBeIdempotent() {
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+
+        SocketTelemetry t1 = telemetryRegistry.register(socket);
+        SocketTelemetry t2 = telemetryRegistry.register(socket);
+
+        assertThat(t1).isSameAs(t2);
+    }
+
+    @Test
+    @DisplayName("register() should register counters and timers")
+    void register_shouldRegisterCoreMeters() {
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+        telemetryRegistry.register(socket);
+
+        assertThat(meterRegistry.find("socket.msg.in").counter()).isNotNull();
+        assertThat(meterRegistry.find("socket.msg.out").counter()).isNotNull();
+        assertThat(meterRegistry.find("socket.error.count").counter()).isNotNull();
+        assertThat(meterRegistry.find("socket.latency").timer()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("register() should register all gauges")
+    void register_shouldRegisterGauges() {
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+        telemetryRegistry.register(socket);
+
+        assertThat(meterRegistry.find("socket.queue.depth").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.tps").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.tps.min").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.tps.max").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.latency.min").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.latency.max").gauge()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("register() should attach correct tags")
+    void register_shouldAttachCorrectTags() {
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+        telemetryRegistry.register(socket);
+
+        Meter meter = meterRegistry.find("socket.msg.in").meter();
+        assertThat(meter).isNotNull();
+
+        assertThat(meter.getId().getTag("id")).isEqualTo("A");
+        assertThat(meter.getId().getTag("name")).isEqualTo("fello");
+        assertThat(meter.getId().getTag("type")).isEqualTo("SERVER");
+    }
+
+    @Test
+    @DisplayName("register() should not duplicate meters")
+    void register_shouldNotDuplicateMeters() {
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+
+        telemetryRegistry.register(socket);
+        int meterCountAfterFirst = meterRegistry.getMeters().size();
+
+        telemetryRegistry.register(socket);
+        int meterCountAfterSecond = meterRegistry.getMeters().size();
+
+        assertThat(meterCountAfterSecond).isEqualTo(meterCountAfterFirst);
+    }
+
 }
