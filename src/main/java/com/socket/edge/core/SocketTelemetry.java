@@ -25,6 +25,8 @@ public class SocketTelemetry {
 
     private static final Logger log = LoggerFactory.getLogger(SocketTelemetry.class);
 
+    private final long SLOW_THRESHOLD_NS = TimeUnit.MILLISECONDS.toNanos(50);
+
     private String id;
     private String name;
     private String type;
@@ -115,7 +117,11 @@ public class SocketTelemetry {
         minLatency.accumulateAndGet(latencyNs, Math::min);
         maxLatency.accumulateAndGet(latencyNs, Math::max);
 
-        log.info("Complete took time {}ms", latencyNs);
+        log.info("Complete took time {}ns", latencyNs);
+        if (latencyNs > SLOW_THRESHOLD_NS) {
+            log.warn("Slow socket {} latency {} ms",
+                    id, latencyNs / 1_000_000d);
+        }
     }
 
     public void onError() {
