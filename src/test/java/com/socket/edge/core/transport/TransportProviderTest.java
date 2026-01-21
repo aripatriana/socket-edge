@@ -5,6 +5,13 @@ import com.socket.edge.model.ChannelCfg;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -144,5 +151,70 @@ class TransportProviderTest {
                 NullPointerException.class,
                 () -> provider.resolve(cfg, null)
         );
+    }
+
+    @Test
+    void registerIfAbsent_shouldBeAtomic_underConcurrency() throws Exception {
+        TransportProvider provider = new TransportProvider();
+        Transport transport = mock(Transport.class);
+
+        int threads = 20;
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+
+        AtomicInteger success = new AtomicInteger();
+
+        for (int i = 0; i < threads; i++) {
+            executor.submit(() -> {
+                try {
+                    start.await();
+                    if (provider.registerIfAbsent("CLIENT|CH1", transport)) {
+                        success.incrementAndGet();
+                    }
+                } catch (InterruptedException ignored) {
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+
+        start.countDown();
+        done.await();
+        executor.shutdown();
+
+        assertEquals(1, success.get(),
+                "Only one thread should succeed registering");
+
+        assertSame(transport, provider.get("CLIENT|CH1"));
+    }
+
+    @Test
+    void destroy_shouldBeSafe_whenCalledConcurrently() throws Exception {
+        TransportProvider provider = new TransportProvider();
+
+        Transport t1 = mock(Transport.class);
+        Transport t2 = mock(Transport.class);
+
+        provider.register("CLIENT|A", t1);
+        provider.register("SERVER|B", t2);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+
+        Callable<Void> destroyTask = () -> {
+            provider.destroy();
+            return null;
+        };
+
+        assertDoesNotThrow(() ->
+                executor.invokeAll(
+                        List.of(destroyTask, destroyTask, destroyTask)
+                )
+        );
+
+        executor.shutdown();
+
+        verify(t1, atLeastOnce()).shutdown();
+        verify(t2, atLeastOnce()).shutdown();
     }
 }
