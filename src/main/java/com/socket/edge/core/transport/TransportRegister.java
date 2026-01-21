@@ -50,7 +50,7 @@ public class TransportRegister {
 
         String key = key(socket.getType(), cfg.name());
         SelectionStrategy<SocketChannel> strategy =
-                SelectionFactory.create(cfg.client().strategy());
+                SelectionFactory.create(cfg.client().strategy(), null);
 
         boolean registered = transportProvider.registerIfAbsent(
                 key,
@@ -102,7 +102,7 @@ public class TransportRegister {
 
         String key = key(clientSockets.get(0).getType(), cfg.name());
         SelectionStrategy<SocketChannel> strategy =
-                SelectionFactory.create(cfg.client().strategy());
+                SelectionFactory.create(cfg.client().strategy(), null);
 
         boolean registered = transportProvider.registerIfAbsent(
                 key,
