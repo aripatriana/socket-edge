@@ -1,7 +1,6 @@
 package com.socket.edge.core.transport;
 
-import com.socket.edge.core.socket.NettyClientSocket;
-import com.socket.edge.core.socket.NettyServerSocket;
+import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.strategy.SelectionFactory;
 import com.socket.edge.core.strategy.SelectionStrategy;
@@ -43,7 +42,7 @@ public class TransportRegister {
      * @param cfg server channel configuration (not null)
      * @param socket server socket to expose (not null)
      */
-    public void registerServerTransport(ChannelCfg cfg, NettyServerSocket socket) {
+    public void registerServerTransport(ChannelCfg cfg, AbstractSocket socket) {
         log.info("registering server transport for channel {} socket {}", cfg.name(), socket.getId());
         Objects.requireNonNull(cfg, "cfg must not be null");
         Objects.requireNonNull(socket, "socket must not be null");
@@ -91,7 +90,7 @@ public class TransportRegister {
      * @param cfg channel configuration for client transport (not null)
      * @param clientSockets list of client sockets to be used by the transport (not null, not empty)
      */
-    public void registerClientTransport(ChannelCfg cfg, List<NettyClientSocket> clientSockets) {
+    public void registerClientTransport(ChannelCfg cfg, List<AbstractSocket> clientSockets) {
         log.info("registering client transport for channel {}", cfg.name());
 
         Objects.requireNonNull(cfg, "cfg must not be null");
@@ -139,7 +138,7 @@ public class TransportRegister {
      * @param cfg name of the channel to which the socket should be added (not null)
      * @param clientSocket socket instance to add (not null)
      */
-    public void registerClientTransport(ChannelCfg cfg, NettyClientSocket clientSocket) {
+    public void registerClientTransport(ChannelCfg cfg, AbstractSocket clientSocket) {
         log.info("Registering client transport for channel {} socket {}", cfg.name(), clientSocket.getId());
         String key = key(clientSocket.getType(), cfg.name());
         Object t = transportProvider.get(key);
@@ -160,7 +159,7 @@ public class TransportRegister {
      * @param cfg name of the channel from which the socket should be removed (not null)
      * @param clientSocket socket instance to remove (not null)
      */
-    public void unregisterClientTransport(ChannelCfg cfg, NettyClientSocket clientSocket) {
+    public void unregisterClientTransport(ChannelCfg cfg, AbstractSocket clientSocket) {
         log.info("Unregistering client transport from channel {} socket {} ", cfg.name(), clientSocket.getId());
 
         String key = key(clientSocket.getType(), cfg.name());
