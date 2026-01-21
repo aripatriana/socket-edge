@@ -25,7 +25,11 @@ public class TelemetryRegistry {
     }
 
     public SocketTelemetry unregister(AbstractSocket socket) {
-        return map.remove(socket.getId());
+        SocketTelemetry telemetry = map.remove(socket.getId());
+        if (telemetry != null) {
+            telemetry.dispose(); // remove meter from registry
+        }
+        return telemetry;
     }
 
     public Metrics getMetric(String id) {
