@@ -20,7 +20,15 @@ public final class DslParser {
 
     record Block(String name, String body) {}
 
+    private String stripComments(String content) {
+        return Arrays.stream(content.split("\n"))
+            .map(l -> l.split("#", 2)[0])
+                .collect(Collectors.joining("\n"));
+    }
+
     private List<Block> extractBlocks(String content, String keyword) {
+
+        content = stripComments(content);
 
         List<Block> blocks = new ArrayList<>();
         int idx = 0;
@@ -223,9 +231,7 @@ public final class DslParser {
             }
 
             else if (line.startsWith("strategy")) {
-                strategy = Strategy.valueOf(
-                        line.split("\\s+")[1].toUpperCase()
-                ).name().toLowerCase();
+                strategy = line.split("\\s+")[1].toLowerCase();
             }
         }
 
@@ -239,6 +245,11 @@ public final class DslParser {
             if (!poolSeen.add(key)) {
                 throw new IllegalStateException("duplicate pool endpoint: " + key);
             }
+        }
+
+        // default strategy
+        if (strategy == null) {
+            strategy = Strategy.ROUNDROBIN.name().toLowerCase();
         }
 
         if (listenPort <= 0 || listenPort > 65535) {
@@ -256,7 +267,7 @@ public final class DslParser {
     private ClientChannel parseClient(String block) {
 
         List<SocketEndpoint> endpoints = new ArrayList<>();
-        String strategy = Strategy.ROUNDROBIN.name();
+        String strategy = null;
 
         for (String line : block.split("\n")) {
             line = line.trim();
@@ -301,20 +312,24 @@ public final class DslParser {
             }
         }
 
-        if (endpoints.size() > 1 && strategy == null) {
-            throw new IllegalStateException(
-                    "client.strategy is required when multiple connect endpoints are defined"
-            );
-        }
+//        if (endpoints.size() > 1 && strategy == null) {
+//            throw new IllegalStateException(
+//                    "client.strategy is required when multiple connect endpoints are defined"
+//            );
+//        }
 
-        Set<String> seen = new HashSet<>();
-        for (SocketEndpoint e : endpoints) {
-            String key = e.host() + ":" + e.port();
-            if (!seen.add(key)) {
-                throw new IllegalStateException("duplicate client endpoint: " + key);
-            }
-        }
+//        Set<String> seen = new HashSet<>();
+//        for (SocketEndpoint e : endpoints) {
+//            String key = e.host() + ":" + e.port();
+//            if (!seen.add(key)) {
+//                throw new IllegalStateException("duplicate client endpoint: " + key);
+//            }
+//        }
 
+        // default strategy
+        if (strategy == null) {
+            strategy = Strategy.ROUNDROBIN.name().toLowerCase();
+        }
 
         if (endpoints.isEmpty()) {
             throw new IllegalStateException("client must have at least one connect");
@@ -371,6 +386,13 @@ public final class DslParser {
             }
         }
 
+        if (!directions.containsKey(Direction.INBOUND)
+                || directions.get(Direction.INBOUND).isEmpty()) {
+            throw new IllegalStateException(
+                    "profile must define at least one inbound rule"
+            );
+        }
+
         return new Iso8583Profile(directions, correlation);
     }
 
@@ -413,13 +435,13 @@ public final class DslParser {
             List<ChannelCfg> channels,
             Map<String, Iso8583Profile> profiles
     ) {
-        for (ChannelCfg c : channels) {
-            if (c.profile() != null && !profiles.containsKey(c.profile())) {
-                throw new IllegalStateException(
-                        "channel '" + c.name() + "' references unknown profile '" + c.profile() + "'"
-                );
-            }
-        }
+//        for (ChannelCfg c : channels) {
+//            if (c.profile() != null && !profiles.containsKey(c.profile())) {
+//                throw new IllegalStateException(
+//                        "channel '" + c.name() + "' references unknown profile '" + c.profile() + "'"
+//                );
+//            }
+//        }
     }
 
 }

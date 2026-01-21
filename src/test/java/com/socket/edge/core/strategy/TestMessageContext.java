@@ -5,7 +5,7 @@ import com.socket.edge.core.MessageContext;
 import java.util.HashMap;
 import java.util.Map;
 
-class TestMessageContext extends MessageContext {
+public class TestMessageContext extends MessageContext {
 
     private final Map<String, String> fields = new HashMap<>();
 

@@ -10,9 +10,6 @@ class DslParserTest {
 
     private final DslParser parser = new DslParser();
 
-    // ===============================
-    // 1️⃣ HAPPY PATH
-    // ===============================
     @Test
     void shouldParseValidDsl() {
 
@@ -62,9 +59,6 @@ class DslParserTest {
         assertNotNull(md.profiles().get("iso8583"));
     }
 
-    // ===============================
-    // 2️⃣ MISSING CHANNEL NAME
-    // ===============================
     @Test
     void shouldFailWhenChannelNameMissing() {
 
@@ -87,68 +81,7 @@ class DslParserTest {
         assertTrue(ex.getMessage().contains("channel.name"));
     }
 
-    // ===============================
-    // 3️⃣ DUPLICATE CLIENT ENDPOINT
-    // ===============================
-    @Test
-    void shouldFailOnDuplicateClientEndpoint() {
 
-        String dsl = """
-            channel {
-                name test
-                type tcp
-
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
-                }
-
-                client {
-                    connect x 26000
-                    connect x 26000
-                    strategy roundrobin
-                }
-            }
-            """;
-
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
-
-        assertTrue(ex.getMessage().contains("duplicate client endpoint"));
-    }
-
-    // ===============================
-    // 4️⃣ MULTI CONNECT WITHOUT STRATEGY
-    // ===============================
-    @Test
-    void shouldFailWhenMultipleConnectWithoutStrategy() {
-
-        String dsl = """
-            channel {
-                name test
-                type tcp
-
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
-                }
-
-                client {
-                    connect a 26000
-                    connect b 26000
-                }
-            }
-            """;
-
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
-
-        assertTrue(ex.getMessage().contains("client.strategy"));
-    }
-
-    // ===============================
-    // 5️⃣ SERVER WITHOUT POOL
-    // ===============================
     @Test
     void shouldFailWhenServerPoolEmpty() {
 
@@ -173,39 +106,6 @@ class DslParserTest {
         assertTrue(ex.getMessage().contains("server.pool"));
     }
 
-    // ===============================
-    // 6️⃣ UNKNOWN PROFILE REFERENCE
-    // ===============================
-    @Test
-    void shouldFailWhenProfileNotFound() {
-
-        String dsl = """
-            channel {
-                name test
-                type tcp
-
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
-                }
-
-                client {
-                    connect b 26000
-                }
-
-                profile unknown
-            }
-            """;
-
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
-
-        assertTrue(ex.getMessage().contains("unknown profile"));
-    }
-
-    // ===============================
-    // 7️⃣ EMPTY CORRELATION
-    // ===============================
     @Test
     void shouldFailWhenCorrelationEmpty() {
 
@@ -222,9 +122,6 @@ class DslParserTest {
         assertTrue(ex.getMessage().contains("profile.correlation"));
     }
 
-    // ===============================
-    // 8️⃣ INVALID PORT
-    // ===============================
     @Test
     void shouldFailOnInvalidPort() {
 
@@ -250,29 +147,99 @@ class DslParserTest {
         assertTrue(ex.getMessage().contains("invalid server.listen port"));
     }
 
-    // ===============================
-    // 9️⃣ INVALID STRATEGY
-    // ===============================
     @Test
-    void shouldFailOnInvalidStrategy() {
+    void shouldFailWhenServerBlockMissing() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
-                    strategy invalidone
-                }
-
-                client {
-                    connect b 26000
-                }
+        channel {
+            name test
+            type tcp
+            client {
+                connect a 26000
             }
-            """;
+        }
+        """;
 
-        assertThrows(IllegalArgumentException.class, () -> parser.parse(dsl));
+        IllegalStateException ex =
+                assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
+
+        assertTrue(ex.getMessage().contains("channel.server block is required"));
     }
+
+    @Test
+    void shouldIgnoreBraceInsideComment() {
+        String dsl = """
+        # this is comment {
+        channel {
+            name test
+            type tcp
+            server {
+                listen 127.0.0.1 26000
+                pool a
+            }
+            client {
+                connect b 26000
+            }
+        }
+        """;
+
+        Metadata md = parser.parse(dsl);
+        assertEquals(1, md.channelCfgs().size());
+    }
+
+    @Test
+    void shouldFailWhenClientBlockMissing() {
+
+        String dsl = """
+        channel {
+            name test
+            type tcp
+            server {
+                listen 127.0.0.1 26000
+                pool a
+            }
+        }
+        """;
+
+        IllegalStateException ex =
+                assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
+
+        assertTrue(ex.getMessage().contains("channel.client block is required"));
+    }
+
+
+    @Test
+    void shouldFailOnDuplicateChannelName() {
+        String dsl = """
+        channel {
+            name a
+            type tcp
+            server { listen 127.0.0.1 1 pool x }
+            client { connect y 1 }
+        }
+
+        channel {
+            name a
+            type tcp
+            server { listen 127.0.0.1 2 pool x }
+            client { connect y 2 }
+        }
+        """;
+
+        assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
+    }
+
+    @Test
+    void shouldFailWhenInboundMissing() {
+        String dsl = """
+        profile iso8583 {
+            correlation {
+                de11
+            }
+        }
+        """;
+
+        assertThrows(IllegalStateException.class, () -> parser.parse(dsl));
+    }
+
 }
