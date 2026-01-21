@@ -5,10 +5,7 @@ import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.RuntimeState;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tags;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.*;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +13,9 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
@@ -55,6 +54,10 @@ public class SocketTelemetry {
     private final AtomicLong minTps = new AtomicLong(Long.MAX_VALUE);
     private final AtomicLong maxTps = new AtomicLong(0);
 
+    private final MeterRegistry registry;
+    private final List<Meter> meters = new CopyOnWriteArrayList<>();
+    private final AtomicBoolean disposed = new AtomicBoolean(false);
+
     public SocketTelemetry(MeterRegistry registry,
                            AbstractSocket socket) {
 
@@ -62,6 +65,7 @@ public class SocketTelemetry {
         this.name = socket.getName();
         this.type = socket.getType().name();
         this.socket = socket;
+        this.registry = registry;
 
         Tags tags = Tags.of(
                 "name", name,
@@ -72,32 +76,65 @@ public class SocketTelemetry {
         this.msgIn = Counter.builder("socket.msg.in")
                 .tags(tags)
                 .register(registry);
+        meters.add(msgIn);
 
         this.msgOut = Counter.builder("socket.msg.out")
                 .tags(tags)
                 .register(registry);
+        meters.add(msgOut);
 
         this.errCnt = Counter.builder("socket.error.count")
                 .tags(tags)
                 .register(registry);
+        meters.add(errCnt);
 
         this.latency = Timer.builder("socket.latency")
                 .tags(tags)
                 .publishPercentileHistogram()
                 .publishPercentiles(0.95, 0.99)
                 .register(registry);
+        meters.add(latency);
 
         /* ===== GAUGES ===== */
-        registry.gauge("socket.queue.depth", tags, queue);
-        registry.gauge("socket.tps", tags, tps);
-        registry.gauge("socket.tps.min", tags, minTps);
-        registry.gauge("socket.tps.max", tags, maxTps);
-        registry.gauge("socket.latency.min", tags, minLatency);
-        registry.gauge("socket.latency.max", tags, maxLatency);
-        registry.gauge("socket.last.msg", tags, lastMsg);
-        registry.gauge("socket.last.connect", tags, lastConnect);
-        registry.gauge("socket.last.disconnect", tags, lastDisconnect);
-        registry.gauge("socket.last.error", tags, lastErr);
+        meters.add(Gauge.builder("socket.queue.depth", queue, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.tps", tps, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.tps.min", minTps, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.tps.max", maxTps, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.latency.min", minLatency, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.latency.max", maxLatency, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.last.msg", lastMsg, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.last.connect", lastConnect, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.last.disconnect", lastDisconnect, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
+
+        meters.add(Gauge.builder("socket.last.error", lastErr, AtomicLong::get)
+                .tags(tags)
+                .register(registry));
     }
 
     public void onMessage() {
@@ -216,6 +253,21 @@ public class SocketTelemetry {
                 lastErr.get(),
                 lastMsg.get()
         );
+    }
+
+    public void dispose() {
+        for (var meter : meters) {
+            try {
+                registry.remove(meter);
+            } catch (Exception e) {
+                log.warn("Failed to remove meter {}", meter.getId(), e);
+            }
+        }
+
+        meters.clear();
+        socket = null;
+
+        log.info("SocketTelemetry disposed for socket id={}", id);
     }
 
     private String extractLocalHost(List<SocketChannel> channels) {

@@ -212,5 +212,13 @@ class SocketTelemetryTest {
         assertThat(metrics.avgTps()).isGreaterThanOrEqualTo(0);
     }
 
+    @Test
+    void disposeShouldRemoveAllMeters() {
+        telemetry.onMessage();
+        telemetry.dispose();
+
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
 
 }
