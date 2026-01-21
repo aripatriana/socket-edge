@@ -21,7 +21,7 @@ public final class ChannelCfgSelector {
 
         for (ChannelCfg ch : channelCfgs) {
             if (ch.name().equals(channelName)) {
-                if (socketType.equals(SocketType.SOCKET_SERVER)) {
+                if (socketType.equals(SocketType.SERVER)) {
                     ServerChannel serverChannel = ch.server();
                     if (serverChannel.listenPort() == localPort
                             && serverChannel.pool()
@@ -29,7 +29,7 @@ public final class ChannelCfgSelector {
                                     .anyMatch(p -> p.host().equalsIgnoreCase(remoteHost))) {
                         return ch;
                     }
-                } else if (socketType.equals(SocketType.SOCKET_CLIENT)) {
+                } else if (socketType.equals(SocketType.CLIENT)) {
                     ClientChannel clientChannel = ch.client();
                     if (clientChannel.endpoints()
                             .stream()

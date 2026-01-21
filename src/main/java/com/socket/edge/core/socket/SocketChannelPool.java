@@ -60,7 +60,7 @@ public class SocketChannelPool {
     }
 
     private SocketEndpoint resolveEndpoint(String ip, int port) {
-        return socketType == SocketType.SOCKET_SERVER
+        return socketType == SocketType.SERVER
                 ? allowlist.stream()
                 .filter(ep -> ip.equals(ep.host()))
                 .findFirst()

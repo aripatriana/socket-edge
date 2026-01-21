@@ -74,7 +74,7 @@ public class TransportRegister {
      */
     public void unregisterServerTransport(ChannelCfg cfg) {
         log.info("unregistering server transport for channel {}", cfg.name());
-        transportProvider.unregister(key(SocketType.SOCKET_SERVER, cfg.name()));
+        transportProvider.unregister(key(SocketType.SERVER, cfg.name()));
     }
 
     /**
@@ -126,7 +126,7 @@ public class TransportRegister {
      */
     public void unregisterClientTransport(ChannelCfg cfg) {
         log.info("Unregistering client transport for channel {}", cfg.name());
-        transportProvider.unregister(key(SocketType.SOCKET_CLIENT, cfg.name()));
+        transportProvider.unregister(key(SocketType.CLIENT, cfg.name()));
     }
 
     /**

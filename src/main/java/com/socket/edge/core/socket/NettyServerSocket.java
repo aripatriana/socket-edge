@@ -33,7 +33,7 @@ public class NettyServerSocket extends AbstractSocket {
     private IsoParser parser;
     private ForwardService forward;
     private SocketChannelPool channelPool;
-    private SocketType type = SocketType.SOCKET_SERVER;
+    private SocketType type = SocketType.SERVER;
     private SocketTelemetry socketTelemetry;
     private TelemetryRegistry telemetryRegistry;
 

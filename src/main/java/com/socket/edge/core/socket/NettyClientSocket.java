@@ -42,7 +42,7 @@ public class NettyClientSocket extends AbstractSocket {
     private IsoParser parser;
     private ForwardService forward;
     private SocketChannelPool channelPool;
-    private SocketType type = SocketType.SOCKET_CLIENT;
+    private SocketType type = SocketType.CLIENT;
     private SocketTelemetry socketTelemetry;
     private TelemetryRegistry telemetryRegistry;
 

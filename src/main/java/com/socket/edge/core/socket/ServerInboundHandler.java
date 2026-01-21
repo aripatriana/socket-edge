@@ -50,8 +50,8 @@ public final class ServerInboundHandler
             msgCtx.setChannel(ctx.channel());
             msgCtx.setLocalAddress((InetSocketAddress) ctx.channel().localAddress());
             msgCtx.setRemoteAddress((InetSocketAddress) ctx.channel().remoteAddress());
-            msgCtx.setInboundType(SocketType.SOCKET_SERVER);
-            msgCtx.setOutboundType(SocketType.SOCKET_CLIENT);
+            msgCtx.setInboundType(SocketType.SERVER);
+            msgCtx.setOutboundType(SocketType.CLIENT);
             msgCtx.addProperty("receivedTimeNs", start);
             msgCtx.setSocketTelemetry(socketTelemetry);
 
