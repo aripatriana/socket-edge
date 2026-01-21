@@ -110,7 +110,7 @@ public class SocketTelemetry {
 
     public void onComplete(long latencyNs) {
         msgOut.increment();
-        queue.decrementAndGet();
+        queue.updateAndGet(v -> Math.max(0, v - 1));
         lastMsg.set(System.currentTimeMillis());
 
         latency.record(latencyNs, TimeUnit.NANOSECONDS);
