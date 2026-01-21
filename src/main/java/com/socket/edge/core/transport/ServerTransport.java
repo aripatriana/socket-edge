@@ -1,6 +1,7 @@
 package com.socket.edge.core.transport;
 
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.strategy.SelectionStrategy;
@@ -9,11 +10,11 @@ import java.util.List;
 
 public final class ServerTransport implements Transport {
 
-    private final NettyServerSocket socket;
+    private final AbstractSocket socket;
     private final SelectionStrategy<SocketChannel> strategy;
 
     public ServerTransport(
-            NettyServerSocket socket,
+            AbstractSocket socket,
             SelectionStrategy<SocketChannel> strategy
     ) {
         this.socket = socket;

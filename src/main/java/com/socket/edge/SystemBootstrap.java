@@ -5,6 +5,7 @@ import com.socket.edge.core.cache.CacheCorrelationStore;
 import com.socket.edge.core.cache.CorrelationStore;
 import com.socket.edge.core.engine.SEEngine;
 import com.socket.edge.core.iso.Iso8583ProfileResolver;
+import com.socket.edge.core.socket.SocketFactory;
 import com.socket.edge.core.socket.SocketManager;
 import com.socket.edge.core.transport.TransportProvider;
 import com.socket.edge.core.transport.TransportRegister;
@@ -43,6 +44,8 @@ public class SystemBootstrap {
     private TransportRegister transportRegister;
     private CorrelationStore correlationStore;
     private SocketManager socketManager;
+    private SocketFactory socketFactory;
+    private ForwardService forwardService;
     private ISOPackager packager;
     private IsoParser parser;
     private ChannelCfgProcessor channelCfgProcessor;
@@ -123,12 +126,9 @@ public class SystemBootstrap {
 
     public void handleSocketConfiguration() throws InterruptedException {
         log.info("Socket initializing..");
-        socketManager = new SocketManager(
-                transportRegister,
-                telemetryRegistry,
-                parser,
-                new ForwardService(camelContext.createProducerTemplate())
-        );
+        forwardService = new ForwardService(camelContext.createProducerTemplate());
+        socketFactory = new SocketFactory(telemetryRegistry, parser, forwardService);
+        socketManager = new SocketManager(socketFactory, transportRegister);
 
         /**
          * SocketManager is bound AFTER Camel routes are started.

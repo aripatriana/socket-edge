@@ -1,6 +1,7 @@
 package com.socket.edge.core.transport;
 
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.NettyClientSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.strategy.SelectionStrategy;
@@ -11,26 +12,26 @@ import java.util.Objects;
 
 public final class ClientTransport implements Transport {
 
-    private final List<NettyClientSocket> sockets;
+    private final List<AbstractSocket> sockets;
     private final SelectionStrategy<SocketChannel> strategy;
 
     public ClientTransport(
-            List<NettyClientSocket> sockets,
+            List<AbstractSocket> sockets,
             SelectionStrategy<SocketChannel> strategy
     ) {
         this.sockets = sockets;
         this.strategy = strategy;
     }
 
-    public List<NettyClientSocket> getSockets() {
+    public List<AbstractSocket> getSockets() {
         return sockets;
     }
 
-    public void addSocket(NettyClientSocket socket) {
+    public void addSocket(AbstractSocket socket) {
         this.sockets.add(socket);
     }
 
-    public void removeSocket(NettyClientSocket socket) {
+    public void removeSocket(AbstractSocket socket) {
         this.sockets.remove(socket);
     }
 
@@ -38,7 +39,7 @@ public final class ClientTransport implements Transport {
     public void send(MessageContext ctx) {
 
         List<SocketChannel> actives = sockets.stream()
-                .map(NettyClientSocket::channelPool)
+                .map(AbstractSocket::channelPool)
                 .filter(Objects::nonNull)
                 .flatMap(p -> p.activeChannels().stream())
                 .filter(Objects::nonNull)
