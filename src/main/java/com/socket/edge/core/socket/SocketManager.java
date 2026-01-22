@@ -92,9 +92,10 @@ public class SocketManager {
         if (existing == null) {
             transportRegister.registerClientTransport(cfg, client);
             log.info("Client socket registered id={}", client.getId());
+        } else {
+            log.warn("Client socket already exists id={}", client.getId());
         }
 
-        log.warn("Client socket already exists id={}", client.getId());
         return client;
     }
 
