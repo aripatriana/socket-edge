@@ -49,9 +49,10 @@ public class SocketManager {
         if (existing == null) {
             transportRegister.registerServerTransport(cfg, server);
             log.info("Server socket registered id={}", server.getId());
+        } else {
+            log.warn("Server socket already exists id={}", server.getId());
         }
 
-        log.warn("Server socket already exists id={}", server.getId());
         return server;
     }
 
