@@ -15,22 +15,26 @@ public final class RoundRobinStrategy<T extends WeightedCandidate>
     public T next(List<T> candidates, MessageContext messageContext) {
         validate(candidates);
 
-        int highestPriority = candidates.stream()
-                .mapToInt(WeightedCandidate::getPriority)
-                .max()
-                .orElseThrow();
+        int highestPriority = Integer.MIN_VALUE;
+        int totalWeight = 0;
 
-        List<T> list = candidates.stream()
-                .filter(c -> c.getPriority() == highestPriority)
-                .toList();
+        // pass 1: find highest priority
+        for (T c : candidates) {
+            highestPriority = Math.max(highestPriority, c.getPriority());
+        }
 
-        int totalWeight = list.stream()
-                .mapToInt(c -> Math.max(1, c.getWeight()))
-                .sum();
+        // pass 2: total weight only for highest priority
+        for (T c : candidates) {
+            if (c.getPriority() == highestPriority) {
+                totalWeight += Math.max(1, c.getWeight());
+            }
+        }
 
         int pos = Math.floorMod(index.getAndIncrement(), totalWeight);
 
-        for (T c : list) {
+        // pass 3: select
+        for (T c : candidates) {
+            if (c.getPriority() != highestPriority) continue;
             pos -= Math.max(1, c.getWeight());
             if (pos < 0) return c;
         }
