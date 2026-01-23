@@ -46,7 +46,7 @@ public class QueueServiceHandle implements HttpServiceHandler {
                 if (id.equalsIgnoreCase("all")) {
                     result.put("result", telemetryRegistry.getAllQueue());
                 } else {
-                    result.put("result", telemetryRegistry.getQueueById(id));
+                    result.put("result", List.of(telemetryRegistry.getQueueById(id)));
                 }
             } else if (name != null && !name.isEmpty()) {
                 result.put("result", telemetryRegistry.getQueueByName(name));

@@ -46,7 +46,7 @@ public class MetricsServiceHandle implements HttpServiceHandler {
                 if (id.equalsIgnoreCase("all")) {
                     result.put("result", telemetryRegistry.getAllMetrics());
                 } else {
-                    result.put("result", telemetryRegistry.getMetricsById(id));
+                    result.put("result", List.of(telemetryRegistry.getMetricsById(id)));
                 }
             } else if (name != null && !name.isEmpty()) {
                 result.put("result", telemetryRegistry.getMetricsByName(name));

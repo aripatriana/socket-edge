@@ -164,6 +164,7 @@ public class SystemBootstrap {
                 new ValidateConfigHandler(reloadCfgService),
                 new ReloadConfigHandler(reloadCfgService),
                 new MetricsServiceHandle(telemetryRegistry),
+                new QueueServiceHandle(telemetryRegistry),
                 new SocketStartHandler(adminHttpService),
                 new SocketStopHandler(adminHttpService),
                 new SocketRestartHandler(adminHttpService)

@@ -45,7 +45,7 @@ public class SocketStatusHandler implements HttpServiceHandler {
                 if (id.equalsIgnoreCase("all")) {
                     result.put("result", telemetryRegistry.getAllRuntimeState());
                 } else {
-                    result.put("result", telemetryRegistry.getRuntimeStateById(id));
+                    result.put("result", List.of(telemetryRegistry.getRuntimeStateById(id)));
                 }
             } else if (name != null && !name.isEmpty()) {
                 result.put("result", telemetryRegistry.getRuntimeStateByName(name));
