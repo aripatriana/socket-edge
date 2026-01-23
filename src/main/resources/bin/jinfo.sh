@@ -1,35 +1,78 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
-BASE_URL="$1"
-shift
 
-REFRESH=0   # 0 = run once
+BASE_URL="${1:-}"
+shift || true
 
-while getopts ":r:" opt; do
-  case $opt in
-    r) REFRESH="$OPTARG" ;;
-    *) echo "Usage: info.sh <base_url> [-r seconds]"; exit 1 ;;
+ID=""
+NAME=""
+ALL=false
+REFRESH=0
+
+usage() {
+  echo "Usage:"
+  echo "  jinfo.sh <base_url> --all [-r seconds]"
+  echo "  jinfo.sh <base_url> -i ID [-r seconds]"
+  echo "  jinfo.sh <base_url> -n NAME [-r seconds]"
+  exit 1
+}
+
+[[ -z "$BASE_URL" ]] && usage
+
+# ================= ARG PARSING =================
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all)
+      ALL=true
+      shift
+      ;;
+    -i)
+      ID="${2:-}"
+      shift 2
+      ;;
+    -n)
+      NAME="${2:-}"
+      shift 2
+      ;;
+    -r)
+      REFRESH="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      ;;
   esac
 done
 
-[ -z "$BASE_URL" ] && { echo "Usage: info.sh <base_url>"; exit 1; }
+# ================= VALIDATION =================
+if ! $ALL && [[ -z "$ID" && -z "$NAME" ]]; then
+  echo "ERROR: must specify --all, -i ID, or -n NAME"
+  exit 1
+fi
 
-# Detect jq
+if $ALL && ([[ -n "$ID" ]] || [[ -n "$NAME" ]]); then
+  echo "ERROR: --all cannot be combined with -i or -n"
+  exit 1
+fi
+
+# ================= JQ DETECT =================
 if [ -x "$BASE_DIR/lib/jq-linux64" ]; then
   JQ="$BASE_DIR/lib/jq-linux64"
 elif command -v jq >/dev/null 2>&1; then
   JQ="$(command -v jq)"
 else
-  echo "ERROR: jq not found"
+  echo "ERROR: jq not found (expected $BASE_DIR/lib/jq-linux64 or jq in PATH)"
   exit 1
 fi
 
-# Colors
+# ================= COLORS =================
 G="\e[32m"; R="\e[31m"; NC="\e[0m"
 
-# ================= TABLE DRAW =================
+# ================= TABLE =================
 print_top() {
   printf "${G}┌──────────────────────────────────┬──────────────────────┬──────────────────────┬────────────┬──────────┬──────────┬──────────┬────────┐${NC}\n"
 }
@@ -40,6 +83,7 @@ print_bottom() {
   printf "${G}└──────────────────────────────────┴──────────────────────┴──────────────────────┴────────────┴──────────┴──────────┴──────────┴────────┘${NC}\n"
 }
 
+# ================= RENDER =================
 render() {
   local json="$1"
   clear
@@ -55,12 +99,9 @@ render() {
       | ($s / 3600 | floor) as $h
       | (($s % 3600) / 60 | floor) as $m
       | ($s % 60) as $sec
-      | if $h > 0 then
-          "\($h)h\($m)m\($sec)s"
-        elif $m > 0 then
-          "\($m)m\($sec)s"
-        else
-          "\($sec)s"
+      | if $h > 0 then "\($h)h\($m)m\($sec)s"
+        elif $m > 0 then "\($m)m\($sec)s"
+        else "\($sec)s"
         end;
 
     def fmt_since(ts):
@@ -68,28 +109,35 @@ render() {
       then fmt_duration((now * 1000 | floor) - ts)
       else "-"
       end;
-  
-    .result.socketStatus
-    | sort_by(.name, .type, .id)
+
+    .result
+    | sort_by(.id)
     | .[]
     | [
         .id,
         (.localHost // "-"),
         (.remoteHost // "-"),
         (.active | tostring),
-         fmt_since(.startTime),
-         fmt_since(.lastConnect),
-         fmt_since(.lastDisconnect),
+        fmt_since(.startTime),
+        fmt_since(.lastConnect),
+        fmt_since(.lastDisconnect),
         .status
       ]
     | @tsv
   ' <<<"$json" |
   while IFS=$'\t' read -r id local remote conn uptime lc ld status; do
     conn_color="$G"
-    [[ "$conn" -eq 0 ]] && conn_color="$R"
+    [[ "$conn" == "0" ]] && conn_color="$R"
+
+    IFS=',' read -ra REMOTES <<< "$remote"
 
     printf "${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} ${conn_color}%-10s${NC} ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
-      "$id" "$local" "$remote" "$conn" "$uptime" "$lc" "$ld" "$status"
+      "$id" "$local" "${REMOTES[0]}" "$conn" "$uptime" "$lc" "$ld" "$status"
+
+    for ((i=1; i<${#REMOTES[@]}; i++)); do
+      printf "${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} %-10s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
+        "" "" "${REMOTES[$i]}" "" "" "" "" ""
+    done
   done
 
   print_bottom
@@ -97,10 +145,20 @@ render() {
 
 # ================= MAIN =================
 run_once() {
-  JSON=$(curl -s "$BASE_URL/socket/status" | sed '1s/^\xEF\xBF//')
+  if $ALL; then
+    URL="$BASE_URL/socket/status?id=all"
+  elif [[ -n "$ID" ]]; then
+    URL="$BASE_URL/socket/status?id=$ID"
+  elif [[ -n "$NAME" ]]; then
+    URL="$BASE_URL/socket/status?name=$NAME"
+  else
+    usage
+  fi
 
-  if ! $JQ -e 'has("result") and (.result | has("socketStatus"))' <<<"$JSON" >/dev/null; then
-    echo "ERROR: invalid JSON"
+  JSON=$(curl -s "$URL" | sed '1s/^\xEF\xBB\xBF//')
+
+  if ! $JQ -e 'has("result") and (.result)' <<<"$JSON" >/dev/null; then
+    echo "ERROR: invalid JSON from $URL"
     echo "$JSON"
     exit 1
   fi
@@ -108,4 +166,11 @@ run_once() {
   render "$JSON"
 }
 
-[ "$REFRESH" -gt 0 ] && while true; do run_once; sleep "$REFRESH"; done || run_once
+if [[ "$REFRESH" -gt 0 ]]; then
+  while true; do
+    run_once
+    sleep "$REFRESH"
+  done
+else
+  run_once
+fi
