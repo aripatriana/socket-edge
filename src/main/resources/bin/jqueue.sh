@@ -100,6 +100,22 @@ render() {
   print_sep
 
   $JQ -r '
+     def fmt_duration(ms):
+      (ms / 1000 | floor) as $s
+      | ($s / 3600 | floor) as $h
+      | (($s % 3600) / 60 | floor) as $m
+      | ($s % 60) as $sec
+      | if $h > 0 then "\($h)h\($m)m\($sec)s"
+        elif $m > 0 then "\($m)m\($sec)s"
+        else "\($sec)s"
+        end;
+
+    def fmt_since(ts):
+      if ts > 0
+      then fmt_duration((now * 1000 | floor) - ts)
+      else "-"
+      end;
+      
     .result
     | sort_by(.id)
     | .[]
@@ -109,8 +125,8 @@ render() {
         .msgOut,
         .queue,
         .errCnt,
-        .lastErr,
-        .lastMsg
+        fmt_since(.lastErr),
+        fmt_since(.lastMsg)
       ]
     | @tsv
   ' <<<"$json" |
