@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SocketStatusHandler implements HttpServiceHandler {
@@ -26,13 +27,32 @@ public class SocketStatusHandler implements HttpServiceHandler {
 
     @Override
     public FullHttpResponse handle(FullHttpRequest req, QueryStringDecoder decoder) {
+        String id = decoder.parameters()
+                .getOrDefault("id", List.of())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        String name = decoder.parameters()
+                .getOrDefault("name", List.of())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
         Map<String, Object> result = new HashMap<>();
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("socketStatus", telemetryRegistry.getAllRuntimeState());
-
+            if (id != null && !id.isEmpty()) {
+                if (id.equalsIgnoreCase("all")) {
+                    result.put("result", telemetryRegistry.getAllRuntimeState());
+                } else {
+                    result.put("result", telemetryRegistry.getRuntimeStateById(id));
+                }
+            } else if (name != null && !name.isEmpty()) {
+                result.put("result", telemetryRegistry.getRuntimeStateByName(name));
+            } else {
+                result.put("message", "No action peformed");
+            }
             result.put("status", "OK");
-            result.put("result", data);
         } catch (Exception e) {
             log.error("Error {}", e.getCause());
             result.put("status", "FAILED");
