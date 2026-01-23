@@ -50,7 +50,10 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
             return false;
         }
 
-        log.info("{} send {}", socketId, new String(bytes));
+        if (log.isDebugEnabled()) {
+            log.debug("{} send {}", socketId, new String(bytes));
+        }
+
         ch.writeAndFlush(Unpooled.wrappedBuffer(bytes));
         return true;
     }
