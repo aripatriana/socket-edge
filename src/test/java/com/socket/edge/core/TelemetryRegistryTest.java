@@ -5,6 +5,7 @@ import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketChannelPool;
 import com.socket.edge.model.Metrics;
+import com.socket.edge.model.Queue;
 import com.socket.edge.model.RuntimeState;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -79,7 +80,9 @@ class TelemetryRegistryTest {
         SocketTelemetry removed = telemetryRegistry.unregister(socket);
 
         assertThat(removed).isSameAs(registered);
-        assertThat(telemetryRegistry.getMetric("A")).isNull();
+        assertThat(telemetryRegistry.getMetricsById("A")).isNull();
+        assertThat(telemetryRegistry.getQueueById("A")).isNull();
+        assertThat(telemetryRegistry.getRuntimeStateById("A")).isNull();
     }
 
     @Test
@@ -102,7 +105,21 @@ class TelemetryRegistryTest {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
         telemetryRegistry.register(socket);
 
-        Metrics result = telemetryRegistry.getMetric("A");
+        Metrics result = telemetryRegistry.getMetricsById("A");
+
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo("A");
+        assertThat(result.name()).isEqualTo("fello");
+        assertThat(result.type()).isEqualTo("SERVER");
+    }
+
+    @Test
+    @DisplayName("getQueue() should return metric for registered socket")
+    void getQueue_existing() {
+        AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
+        telemetryRegistry.register(socket);
+
+        Queue result = telemetryRegistry.getQueueById("A");
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo("A");
@@ -113,8 +130,15 @@ class TelemetryRegistryTest {
     @Test
     @DisplayName("getMetric() should return null for missing id")
     void getMetric_missing() {
-        assertThat(telemetryRegistry.getMetric("UNKNOWN")).isNull();
+        assertThat(telemetryRegistry.getMetricsById("UNKNOWN")).isNull();
     }
+
+    @Test
+    @DisplayName("getQueue() should return null for missing id")
+    void getQueue_missing() {
+        assertThat(telemetryRegistry.getQueueById("UNKNOWN")).isNull();
+    }
+
 
     /* ---------------------------------------------------
      * GET ALL METRICS
@@ -145,9 +169,39 @@ class TelemetryRegistryTest {
     }
 
     @Test
+    @DisplayName("getAllQueue() should return sorted queue by id")
+    void getAllQueue_sorted() {
+        AbstractSocket s1 = socket("B", "fello", SocketType.SERVER);
+        AbstractSocket s2 = socket("A", "fello", SocketType.SERVER);
+
+        SocketTelemetry t1 = spy(telemetryRegistry.register(s1));
+        SocketTelemetry t2 = spy(telemetryRegistry.register(s2));
+
+        Queue m1 = mock(Queue.class);
+        when(m1.id()).thenReturn("B");
+        Queue m2 = mock(Queue.class);
+        when(m2.id()).thenReturn("A");
+
+        doReturn(m1).when(t1).getQueue();
+        doReturn(m2).when(t2).getQueue();
+
+        List<Queue> result = telemetryRegistry.getAllQueue();
+
+        assertThat(result)
+                .extracting(Queue::id)
+                .containsExactly("A", "B");
+    }
+
+    @Test
     @DisplayName("getAllMetrics() should return empty list if no telemetry")
     void getAllMetrics_empty() {
         assertThat(telemetryRegistry.getAllMetrics()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getAllQueue() should return empty list if no telemetry")
+    void getAllQueue_empty() {
+        assertThat(telemetryRegistry.getAllQueue()).isEmpty();
     }
 
     /* ---------------------------------------------------
@@ -164,7 +218,7 @@ class TelemetryRegistryTest {
         SocketChannelPool pool = mock(SocketChannelPool.class);
         when(socket.channelPool()).thenReturn(pool);
 
-        RuntimeState result = telemetryRegistry.getRuntimeState("A");
+        RuntimeState result = telemetryRegistry.getRuntimeStateById("A");
 
         assertThat(result.id()).isEqualTo("A");
     }
@@ -266,9 +320,12 @@ class TelemetryRegistryTest {
         telemetryRegistry.register(socket);
 
         assertThat(meterRegistry.find("socket.queue.depth").gauge()).isNotNull();
-        assertThat(meterRegistry.find("socket.tps").gauge()).isNotNull();
-        assertThat(meterRegistry.find("socket.tps.min").gauge()).isNotNull();
-        assertThat(meterRegistry.find("socket.tps.max").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.throughput.tps.current").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.throughput.tps.min").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.throughput.tps.max").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.pressure.tps.current").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.pressure.tps.min").gauge()).isNotNull();
+        assertThat(meterRegistry.find("socket.pressure.tps.max").gauge()).isNotNull();
         assertThat(meterRegistry.find("socket.latency.min").gauge()).isNotNull();
         assertThat(meterRegistry.find("socket.latency.max").gauge()).isNotNull();
     }
