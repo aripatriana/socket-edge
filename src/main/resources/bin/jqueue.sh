@@ -93,7 +93,7 @@ render() {
 
   print_top
   printf "${G}│${NC} %-35s ${G}│${NC} %15s ${G}│${NC} %15s ${G}│${NC} %7s ${G}│${NC} %7s ${G}│${NC} %10s ${G}│${NC} %10s ${G}│${NC}\n" \
-    "ID" "MSG_IN" "MSG_OUT" "QUEUE" "ERR" "LAST_ERR" "LAST_MSG"
+    "ID" "MSG_IN" "MSG_OUT" "QUEUE" "CNT_ERR" "LAST_ERR" "LAST_MSG"
 
 
 
