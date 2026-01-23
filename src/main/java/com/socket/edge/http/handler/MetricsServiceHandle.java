@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MetricsServiceHandle implements HttpServiceHandler {
@@ -27,9 +28,31 @@ public class MetricsServiceHandle implements HttpServiceHandler {
 
     @Override
     public FullHttpResponse handle(FullHttpRequest request, QueryStringDecoder decoder) {
+        String id = decoder.parameters()
+                .getOrDefault("id", List.of())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        String name = decoder.parameters()
+                .getOrDefault("name", List.of())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
         Map<String, Object> result = new HashMap<>();
         try {
-            result.put("result", telemetryRegistry.getAllMetrics());
+            if (id != null && !id.isEmpty()) {
+                if (id.equalsIgnoreCase("all")) {
+                    result.put("result", telemetryRegistry.getAllMetrics());
+                } else {
+                    result.put("result", telemetryRegistry.getMetricsById(id));
+                }
+            } else if (name != null && !name.isEmpty()) {
+                result.put("result", telemetryRegistry.getMetricsByName(name));
+            } else {
+                result.put("message", "No action peformed");
+            }
             result.put("status", "OK");
         } catch (Exception e) {
             log.error("Error {}", e.getCause());
