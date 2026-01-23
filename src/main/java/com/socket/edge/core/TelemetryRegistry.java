@@ -68,15 +68,27 @@ public class TelemetryRegistry {
     }
 
     public Metrics getMetricsById(String id) {
-        return getById(id).getMetrics();
+        SocketTelemetry socketTelemetry = getById(id);
+        if (socketTelemetry != null) {
+            return socketTelemetry.getMetrics();
+        }
+        return null;
     }
 
     public RuntimeState getRuntimeStateById(String id) {
-        return getById(id).getRuntimeState();
+        SocketTelemetry socketTelemetry = getById(id);
+        if (socketTelemetry != null) {
+            return socketTelemetry.getRuntimeState();
+        }
+        return null;
     }
 
     public Queue getQueueById(String id) {
-        return getById(id).getQueue();
+        SocketTelemetry socketTelemetry = getById(id);
+        if (socketTelemetry != null) {
+            return socketTelemetry.getQueue();
+        }
+        return null;
     }
 
     public List<Metrics> getMetricsByName(String name) {
