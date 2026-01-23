@@ -4,6 +4,7 @@ import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketChannelPool;
 import com.socket.edge.model.Metrics;
+import com.socket.edge.model.Queue;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,10 +48,10 @@ class SocketTelemetryTest {
     void shouldIncreaseMsgInAndQueue() {
         telemetry.onMessage();
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.msgIn()).isEqualTo(1);
-        assertThat(metrics.queue()).isEqualTo(1);
+        assertThat(queue.msgIn()).isEqualTo(1);
+        assertThat(queue.queue()).isEqualTo(1);
     }
 
     @Test
@@ -58,10 +59,10 @@ class SocketTelemetryTest {
         telemetry.onMessage();
         telemetry.onComplete(1_000_000);
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.msgOut()).isEqualTo(1);
-        assertThat(metrics.queue()).isZero();
+        assertThat(queue.msgOut()).isEqualTo(1);
+        assertThat(queue.queue()).isZero();
     }
 
     @Test
@@ -83,19 +84,19 @@ class SocketTelemetryTest {
     void shouldRecordError() {
         telemetry.onError();
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.errCnt()).isEqualTo(1);
-        assertThat(metrics.lastErr()).isGreaterThan(0);
+        assertThat(queue.errCnt()).isEqualTo(1);
+        assertThat(queue.lastErr()).isGreaterThan(0);
     }
 
     @Test
     void shouldNotProduceNegativeQueue() {
         telemetry.onComplete(1_000_000);
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isGreaterThanOrEqualTo(0);
+        assertThat(queue.queue()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
@@ -104,9 +105,9 @@ class SocketTelemetryTest {
         telemetry.onComplete(1_000_000);
         telemetry.onError();
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isGreaterThanOrEqualTo(0);
+        assertThat(queue.queue()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
@@ -114,11 +115,11 @@ class SocketTelemetryTest {
         telemetry.onComplete(1_000_000);
         telemetry.onMessage();
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isEqualTo(1);
-        assertThat(metrics.msgIn()).isEqualTo(1);
-        assertThat(metrics.msgOut()).isEqualTo(1);
+        assertThat(queue.queue()).isEqualTo(1);
+        assertThat(queue.msgIn()).isEqualTo(1);
+        assertThat(queue.msgOut()).isEqualTo(1);
     }
 
     @Test
@@ -127,10 +128,10 @@ class SocketTelemetryTest {
         telemetry.onComplete(1_000_000);
         telemetry.onComplete(1_000_000); // duplicate
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isZero();
-        assertThat(metrics.msgOut()).isEqualTo(2);
+        assertThat(queue.queue()).isZero();
+        assertThat(queue.msgOut()).isEqualTo(2);
     }
 
     @Test
@@ -139,10 +140,10 @@ class SocketTelemetryTest {
         telemetry.onError();
         telemetry.onComplete(1_000_000);
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isZero();
-        assertThat(metrics.errCnt()).isEqualTo(1);
+        assertThat(queue.queue()).isZero();
+        assertThat(queue.errCnt()).isEqualTo(1);
     }
 
     @Test
@@ -157,11 +158,11 @@ class SocketTelemetryTest {
             telemetry.onComplete(1_000_000);
         }
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isZero();
-        assertThat(metrics.msgIn()).isEqualTo(burst);
-        assertThat(metrics.msgOut()).isEqualTo(burst);
+        assertThat(queue.queue()).isZero();
+        assertThat(queue.msgIn()).isEqualTo(burst);
+        assertThat(queue.msgOut()).isEqualTo(burst);
     }
 
     @Test
@@ -192,25 +193,71 @@ class SocketTelemetryTest {
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
 
-        Metrics metrics = telemetry.getMetrics();
+        Queue queue = telemetry.getQueue();
 
-        assertThat(metrics.queue()).isGreaterThanOrEqualTo(0);
+        assertThat(queue.queue()).isGreaterThanOrEqualTo(0);
     }
 
 
     @Test
-    void tpsShouldNeverBeNegative() throws InterruptedException {
+    void pressureAndThroughputTpsShouldNeverBeNegative() throws InterruptedException {
         telemetry.onMessage();
         telemetry.onMessage();
+        telemetry.onComplete(1_000_000);
 
-        Thread.sleep(1100); // roll TPS window
+        Thread.sleep(1100); // move to next TPS window
 
         telemetry.onMessage();
+        telemetry.onComplete(1_000_000);
 
         Metrics metrics = telemetry.getMetrics();
 
-        assertThat(metrics.avgTps()).isGreaterThanOrEqualTo(0);
+        assertThat(metrics.pressureTps()).isGreaterThanOrEqualTo(0);
+        assertThat(metrics.throughputTps()).isGreaterThanOrEqualTo(0);
     }
+
+    @Test
+    void resetWindowMetricsShouldClearTpsAndLatencyWindow() {
+        telemetry.onMessage();
+        telemetry.onComplete(1_000_000);
+        telemetry.onMessage();
+        telemetry.onComplete(3_000_000);
+
+        telemetry.resetWindowMetrics();
+
+        Metrics metrics = telemetry.getMetrics();
+
+        assertThat(metrics.pressureTps()).isZero();
+        assertThat(metrics.throughputTps()).isZero();
+
+        assertThat(metrics.minPressureTps()).isZero();
+        assertThat(metrics.maxPressureTps()).isZero();
+
+        assertThat(metrics.minThroughputTps()).isZero();
+        assertThat(metrics.maxThroughputTps()).isZero();
+
+        assertThat(metrics.minLatency()).isZero();
+        assertThat(metrics.maxLatency()).isZero();
+    }
+
+    @Test
+    void tpsWindowShouldResetAutomaticallyAfterOneSecond() throws InterruptedException {
+        telemetry.onMessage();
+        telemetry.onMessage();
+
+        Metrics first = telemetry.getMetrics();
+        long firstPressure = first.pressureTps();
+
+        Thread.sleep(1100);
+
+        telemetry.onMessage();
+
+        Metrics second = telemetry.getMetrics();
+
+        assertThat(second.pressureTps())
+                .isLessThanOrEqualTo(firstPressure + 1);
+    }
+
 
     @Test
     void disposeShouldRemoveAllMeters() {

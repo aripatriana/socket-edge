@@ -4,8 +4,11 @@ import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.model.Metrics;
+import com.socket.edge.model.Queue;
 import com.socket.edge.model.RuntimeState;
 import io.micrometer.core.instrument.*;
+import io.micrometer.core.instrument.distribution.HistogramSnapshot;
+import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,59 +16,77 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.atomic.*;
 import java.util.stream.Collectors;
 
 public class SocketTelemetry {
 
     private static final Logger log = LoggerFactory.getLogger(SocketTelemetry.class);
 
-    private final long SLOW_THRESHOLD_NS = TimeUnit.MILLISECONDS.toNanos(50);
+    private static final long SLOW_THRESHOLD_NS =
+            TimeUnit.MILLISECONDS.toNanos(50);
 
-    private String id;
-    private String name;
-    private String type;
+    private static final long TPS_WINDOW_MS = 1000;
+
+    private final String id;
+    private final String name;
+    private final String type;
     private AbstractSocket socket;
 
-    /* ===== MICROMETER METERS ===== */
-    private final Counter msgIn;
-    private final Counter msgOut;
-    private final Counter errCnt;
-    private final Timer latency;
+    /* ================= MICROMETER ================= */
 
-    /* ===== INTERNAL STATE (HOT PATH SAFE) ===== */
-    private final AtomicLong minLatency = new AtomicLong(Long.MAX_VALUE);
-    private final AtomicLong maxLatency = new AtomicLong(0);
-    private final AtomicLong lastErr = new AtomicLong(0);
+    private Counter msgIn;
+    private Counter msgOut;
+    private Counter errCnt;
+    private Timer latency;
+
+    /* ================= HOT STATE ================= */
+
+    private final AtomicLong queue = new AtomicLong(0);
     private final AtomicLong lastMsg = new AtomicLong(0);
+    private final AtomicLong lastErr = new AtomicLong(0);
     private final AtomicLong lastConnect = new AtomicLong(0);
     private final AtomicLong lastDisconnect = new AtomicLong(0);
-    private final AtomicLong queue = new AtomicLong(0);
-    private final AtomicLong channelCounter = new AtomicLong(0);
 
-    /* TPS calculation */
-    private final LongAdder tpsCounter = new LongAdder();
-    private final AtomicLong lastTpsTime = new AtomicLong(System.currentTimeMillis());
-    private final AtomicLong tps = new AtomicLong(0);
-    private final AtomicLong minTps = new AtomicLong(Long.MAX_VALUE);
-    private final AtomicLong maxTps = new AtomicLong(0);
+    private final AtomicLong minLatency = new AtomicLong(Long.MAX_VALUE);
+    private final AtomicLong maxLatency = new AtomicLong(0);
+
+    // pressure TPS window
+    private final AtomicLong pressureWindow = new AtomicLong(-1);
+    private final LongAdder pressureCounter = new LongAdder();
+
+    private final AtomicLong pressureTps = new AtomicLong(0);
+    private final AtomicLong minPressureTps = new AtomicLong(Long.MAX_VALUE);
+    private final AtomicLong maxPressureTps = new AtomicLong(0);
+
+    private DistributionSummary pressureSummary;
+
+    // throughput TPS window
+    private final AtomicLong throughputWindow = new AtomicLong(-1);
+    private final LongAdder throughputCounter = new LongAdder();
+
+
+    private final AtomicLong throughputTps = new AtomicLong(0);
+    private final AtomicLong minThroughputTps = new AtomicLong(Long.MAX_VALUE);
+    private final AtomicLong maxThroughputTps = new AtomicLong(0);
+
+    private DistributionSummary throughputSummary;
 
     private final MeterRegistry registry;
     private final List<Meter> meters = new CopyOnWriteArrayList<>();
     private final AtomicBoolean disposed = new AtomicBoolean(false);
 
-    public SocketTelemetry(MeterRegistry registry,
-                           AbstractSocket socket) {
+    public SocketTelemetry(MeterRegistry registry, AbstractSocket socket) {
+
+        this.registry = registry;
+        this.socket = socket;
 
         this.id = socket.getId();
         this.name = socket.getName();
         this.type = socket.getType().name();
-        this.socket = socket;
-        this.registry = registry;
 
         Tags tags = Tags.of(
                 "name", name,
@@ -73,88 +94,110 @@ public class SocketTelemetry {
                 "type", type
         );
 
+        initMeters(tags);
+    }
+
+    private void initMeters(Tags tags) {
+
+        /* ===== Counters ===== */
+
         this.msgIn = Counter.builder("socket.msg.in")
                 .tags(tags)
                 .register(registry);
-        meters.add(msgIn);
 
         this.msgOut = Counter.builder("socket.msg.out")
                 .tags(tags)
                 .register(registry);
-        meters.add(msgOut);
 
         this.errCnt = Counter.builder("socket.error.count")
                 .tags(tags)
                 .register(registry);
+
+        meters.add(msgIn);
+        meters.add(msgOut);
         meters.add(errCnt);
+
+        /* ===== Latency ===== */
 
         this.latency = Timer.builder("socket.latency")
                 .tags(tags)
                 .publishPercentileHistogram()
-                .publishPercentiles(0.95, 0.99)
+                .publishPercentiles(0.90, 0.95)
                 .register(registry);
+
         meters.add(latency);
 
-        /* ===== GAUGES ===== */
-        meters.add(Gauge.builder("socket.queue.depth", queue, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        /* ===== TPS Distribution ===== */
 
-        meters.add(Gauge.builder("socket.tps", tps, AtomicLong::get)
+        this.pressureSummary = DistributionSummary.builder("socket.pressure.tps")
                 .tags(tags)
-                .register(registry));
+                .publishPercentiles(0.90, 0.95)
+                .publishPercentileHistogram()
+                .register(registry);
 
-        meters.add(Gauge.builder("socket.tps.min", minTps, AtomicLong::get)
+        this.throughputSummary = DistributionSummary.builder("socket.throughput.tps")
                 .tags(tags)
-                .register(registry));
+                .publishPercentiles(0.90, 0.95)
+                .publishPercentileHistogram()
+                .register(registry);
 
-        meters.add(Gauge.builder("socket.tps.max", maxTps, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        meters.add(pressureSummary);
+        meters.add(throughputSummary);
 
-        meters.add(Gauge.builder("socket.latency.min", minLatency, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        /* ===== Gauges ===== */
 
-        meters.add(Gauge.builder("socket.latency.max", maxLatency, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        registerGauge("socket.queue.depth", queue);
+        registerGauge("socket.pressure.tps.current", pressureTps);
+        registerGauge("socket.throughput.tps.current", throughputTps);
 
-        meters.add(Gauge.builder("socket.last.msg", lastMsg, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        registerGauge("socket.pressure.tps.min", minPressureTps);
+        registerGauge("socket.pressure.tps.max", maxPressureTps);
 
-        meters.add(Gauge.builder("socket.last.connect", lastConnect, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        registerGauge("socket.throughput.tps.min", minThroughputTps);
+        registerGauge("socket.throughput.tps.max", maxThroughputTps);
 
-        meters.add(Gauge.builder("socket.last.disconnect", lastDisconnect, AtomicLong::get)
-                .tags(tags)
-                .register(registry));
+        registerGauge("socket.latency.min", minLatency);
+        registerGauge("socket.latency.max", maxLatency);
 
-        meters.add(Gauge.builder("socket.last.error", lastErr, AtomicLong::get)
-                .tags(tags)
+        registerGauge("socket.last.msg", lastMsg);
+        registerGauge("socket.last.error", lastErr);
+        registerGauge("socket.last.connect", lastConnect);
+        registerGauge("socket.last.disconnect", lastDisconnect);
+    }
+
+
+    private void registerGauge(String name, AtomicLong ref) {
+        meters.add(Gauge.builder(name, ref, AtomicLong::get)
                 .register(registry));
     }
 
     public void onMessage() {
+        long now = System.currentTimeMillis();
+
         msgIn.increment();
         queue.incrementAndGet();
-        tpsCounter.increment();
-        lastMsg.set(System.currentTimeMillis());
-        calculateTps();
+        lastMsg.set(now);
+
+        recordPressure(now);
     }
 
     public void onComplete(long latencyNs) {
+        long now = System.currentTimeMillis();
+
         msgOut.increment();
         queue.updateAndGet(v -> Math.max(0, v - 1));
-        lastMsg.set(System.currentTimeMillis());
+        lastMsg.set(now);
+
+        recordThroughput(now);
 
         latency.record(latencyNs, TimeUnit.NANOSECONDS);
+
         minLatency.accumulateAndGet(latencyNs, Math::min);
         maxLatency.accumulateAndGet(latencyNs, Math::max);
 
-        log.info("Complete took time {}ns", latencyNs);
+        if (log.isDebugEnabled()) {
+            log.debug("Complete took time {}ns", latencyNs);
+        }
         if (latencyNs > SLOW_THRESHOLD_NS) {
             log.warn("Slow socket {} latency {} ms",
                     id, latencyNs / 1_000_000d);
@@ -176,31 +219,106 @@ public class SocketTelemetry {
         lastConnect.set(0);
     }
 
-    /* ========================================================= */
-    /* ====================== TPS LOGIC ======================== */
-    /* ========================================================= */
+    public void resetWindowMetrics() {
+        // RESET TPS window state (important for zero-allocation TPS)
+        pressureCounter.reset();
+        throughputCounter.reset();
 
-    private void calculateTps() {
-        long now = System.currentTimeMillis();
-        long last = lastTpsTime.get();
+        pressureWindow.set(-1);
+        throughputWindow.set(-1);
 
-        if (now - last >= 1000) {
-            if (lastTpsTime.compareAndSet(last, now)) {
-                long currentTps = tpsCounter.sumThenReset();
-                tps.set(currentTps);
+        // TPS current
+        pressureTps.set(0);
+        throughputTps.set(0);
 
-                // MIN TPS
-                minTps.accumulateAndGet(currentTps, Math::min);
+        // TPS min/max
+        minPressureTps.set(Long.MAX_VALUE);
+        maxPressureTps.set(0);
 
-                // MAX TPS
-                maxTps.accumulateAndGet(currentTps, Math::max);
-            }
-        }
+        minThroughputTps.set(Long.MAX_VALUE);
+        maxThroughputTps.set(0);
+
+        // latency min/max
+        minLatency.set(Long.MAX_VALUE);
+        maxLatency.set(0);
+
+        log.info("SocketTelemetry window metrics reset id={}", id);
     }
 
-    /* ========================================================= */
-    /* ======================= SNAPSHOT ======================== */
-    /* ========================================================= */
+    public void resetTpsBuffers() {
+        pressureCounter.reset();
+        throughputCounter.reset();
+
+        pressureWindow.set(-1);
+        throughputWindow.set(-1);
+
+        pressureTps.set(0);
+        throughputTps.set(0);
+
+        log.info("SocketTelemetry TPS counters reset id={}", id);
+    }
+
+    public synchronized void resetAllMeters() {
+
+        meters.forEach(registry::remove);
+        meters.clear();
+
+        Tags tags = Tags.of(
+                "name", name,
+                "id", id,
+                "type", type
+        );
+
+        initMeters(tags);
+        resetWindowMetrics();
+
+        log.warn("SocketTelemetry FULL meter reset id={}", id);
+    }
+
+    private void recordThroughput(long now) {
+        long window = now / TPS_WINDOW_MS;
+
+        long prev = throughputWindow.get();
+        if (prev != window && throughputWindow.compareAndSet(prev, window)) {
+            throughputCounter.reset();
+        }
+
+        throughputCounter.increment();
+        long current = throughputCounter.sum();
+
+        throughputTps.set(current);
+        minThroughputTps.accumulateAndGet(current, Math::min);
+        maxThroughputTps.accumulateAndGet(current, Math::max);
+
+        throughputSummary.record(current);
+    }
+
+    private void recordPressure(long now) {
+        long window = now / TPS_WINDOW_MS;
+
+        long prev = pressureWindow.get();
+        if (prev != window && pressureWindow.compareAndSet(prev, window)) {
+            pressureCounter.reset();
+        }
+
+        pressureCounter.increment();
+        long current = pressureCounter.sum();
+
+        pressureTps.set(current);
+        minPressureTps.accumulateAndGet(current, Math::min);
+        maxPressureTps.accumulateAndGet(current, Math::max);
+
+        pressureSummary.record(current);
+    }
+
+    private static long extract(HistogramSnapshot snap, double p) {
+        for (ValueAtPercentile v : snap.percentileValues()) {
+            if (Double.compare(v.percentile(), p) == 0) {
+                return (long) v.value();
+            }
+        }
+        return 0;
+    }
 
     public RuntimeState getRuntimeState() {
         List<SocketChannel> channels =
@@ -213,7 +331,6 @@ public class SocketTelemetry {
             localHost = extractLocalHost(channels);
         }
         String remoteHost = extractRemoteHosts(channels);
-        String status = socket.getState().name();
 
         return new RuntimeState(
                 socket.getId(),
@@ -225,56 +342,68 @@ public class SocketTelemetry {
                 socket.getStartTime(),
                 lastConnect.get(),
                 lastDisconnect.get(),
-                status);
+                socket.getState().name()
+        );
+    }
+
+    public Queue getQueue() {
+        return new Queue(
+                id,
+                name,
+                type,
+                (long) msgIn.count(),
+                (long) msgOut.count(),
+                queue.get(),
+                (long) errCnt.count(),
+                lastErr.get(),
+                lastMsg.get());
     }
 
     public Metrics getMetrics() {
         long count = latency.count();
-        long totalLatencyNano = (long) latency.totalTime(TimeUnit.NANOSECONDS);
-        long avgLatencyNano = count == 0 ? 0 : totalLatencyNano / count;
-        long minLatencyNano = minLatency.get() == Long.MAX_VALUE ? 0 : minLatency.get();
-        long maxLatencyNano = maxLatency.get() == 0 ? 0 : maxLatency.get();
-        long minTpsVal = minTps.get() == Long.MAX_VALUE ? 0 : minTps.get();
-        long maxTpsVal = maxTps.get();
+        long total = (long) latency.totalTime(TimeUnit.NANOSECONDS);
+
+        HistogramSnapshot latencySnap = latency.takeSnapshot();
+        HistogramSnapshot pressureSnap = pressureSummary.takeSnapshot();
+        HistogramSnapshot throughputSnap = throughputSummary.takeSnapshot();
+
         return new Metrics(
                 id,
                 name,
                 type,
-                avgLatencyNano,
-                minLatencyNano,
-                maxLatencyNano,
-                (long) msgIn.count(),
-                (long) msgOut.count(),
-                queue.get(),
-                tps.get(),
-                minTpsVal,
-                maxTpsVal,
-                (long) errCnt.count(),
-                lastErr.get(),
-                lastMsg.get()
+
+                count == 0 ? 0 : total / count,
+                minLatency.get() == Long.MAX_VALUE ? 0 : minLatency.get(),
+                maxLatency.get(),
+                extract(latencySnap, 0.90),
+                extract(latencySnap, 0.95),
+
+                pressureTps.get(),
+                minPressureTps.get() == Long.MAX_VALUE ? 0 : minPressureTps.get(),
+                maxPressureTps.get(),
+                extract(pressureSnap, 0.90),
+                extract(pressureSnap, 0.95),
+
+                throughputTps.get(),
+                minThroughputTps.get() == Long.MAX_VALUE ? 0 : minThroughputTps.get(),
+                maxThroughputTps.get(),
+                extract(throughputSnap, 0.90),
+                extract(throughputSnap, 0.95)
         );
     }
 
     public void dispose() {
-        for (var meter : meters) {
-            try {
-                registry.remove(meter);
-            } catch (Exception e) {
-                log.warn("Failed to remove meter {}", meter.getId(), e);
-            }
-        }
+        if (!disposed.compareAndSet(false, true)) return;
 
+        meters.forEach(registry::remove);
         meters.clear();
         socket = null;
 
-        log.info("SocketTelemetry disposed for socket id={}", id);
+        log.info("SocketTelemetry disposed id={}", id);
     }
 
     private String extractLocalHost(List<SocketChannel> channels) {
-
-        if (channels == null || channels.isEmpty()) {
-            return "-";
-        }
+        if (channels == null || channels.isEmpty()) return "-";
 
         return channels.stream()
                 .map(SocketChannel::channel)
@@ -283,16 +412,14 @@ public class SocketTelemetry {
                 .map(Channel::localAddress)
                 .filter(InetSocketAddress.class::isInstance)
                 .map(InetSocketAddress.class::cast)
-                .map(addr -> addr.getHostString() + ":" + addr.getPort())
+                .map(a -> a.getHostString() + ":" + a.getPort())
                 .distinct()
                 .findFirst()
                 .orElse("-");
     }
 
     private String extractRemoteHosts(List<SocketChannel> channels) {
-        if (channels == null || channels.isEmpty()) {
-            return "-";
-        }
+        if (channels == null || channels.isEmpty()) return "-";
 
         return channels.stream()
                 .map(SocketChannel::channel)
@@ -301,7 +428,7 @@ public class SocketTelemetry {
                 .map(Channel::remoteAddress)
                 .filter(InetSocketAddress.class::isInstance)
                 .map(InetSocketAddress.class::cast)
-                .map(addr -> addr.getHostString() + ":" + addr.getPort())
+                .map(a -> a.getHostString() + ":" + a.getPort())
                 .distinct()
                 .collect(Collectors.joining(","));
     }
@@ -309,10 +436,7 @@ public class SocketTelemetry {
     private String extractServerLocalHost(NettyServerSocket socket) {
         Channel ch = socket.getServerChannel();
         if (ch == null) return "-";
-
-        InetSocketAddress addr =
-                (InetSocketAddress) ch.localAddress();
-
+        InetSocketAddress addr = (InetSocketAddress) ch.localAddress();
         return ":" + addr.getPort();
     }
 }
