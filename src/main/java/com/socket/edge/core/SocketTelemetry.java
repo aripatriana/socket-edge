@@ -7,6 +7,7 @@ import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.Queue;
 import com.socket.edge.model.RuntimeState;
+import com.socket.edge.model.SocketEndpoint;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
 import io.micrometer.core.instrument.distribution.ValueAtPercentile;
@@ -36,6 +37,7 @@ public class SocketTelemetry {
     private final String name;
     private final String type;
     private AbstractSocket socket;
+    private SocketEndpoint se;
 
     /* ================= MICROMETER ================= */
 
@@ -80,10 +82,11 @@ public class SocketTelemetry {
     private final List<Meter> meters = new CopyOnWriteArrayList<>();
     private final AtomicBoolean disposed = new AtomicBoolean(false);
 
-    public SocketTelemetry(MeterRegistry registry, AbstractSocket socket, String hashId) {
+    public SocketTelemetry(String hashId, MeterRegistry registry, AbstractSocket socket, SocketEndpoint se) {
 
         this.registry = registry;
         this.socket = socket;
+        this.se = se;
 
         this.hashId = hashId;
         this.id = socket.getId();
@@ -433,6 +436,9 @@ public class SocketTelemetry {
         if (channels == null || channels.isEmpty()) return "-";
 
         return channels.stream()
+                .filter(sc -> sc != null)
+                .filter(sc -> sc.getSocketEndpoint() != null)
+                .filter(sc -> Objects.equals(sc.getSocketEndpoint().id(), se.id()))
                 .map(SocketChannel::channel)
                 .filter(Objects::nonNull)
                 .filter(Channel::isActive)

@@ -29,7 +29,7 @@ public class TelemetryRegistry {
         String hashId = CommonUtil.hashId(socket.getId(), se.id().id());
         SocketTelemetry telemetry = byId.computeIfAbsent(
                 hashId,
-                k -> new SocketTelemetry(registry, socket, hashId)
+                k -> new SocketTelemetry(hashId, registry, socket, se)
         );
 
         nameToIds
