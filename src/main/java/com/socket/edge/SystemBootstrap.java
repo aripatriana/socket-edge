@@ -19,7 +19,11 @@ import com.socket.edge.utils.ConfigUtil;
 import com.socket.edge.utils.IsoParser;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.jmx.JmxConfig;
+import io.micrometer.jmx.JmxMeterRegistry;
 import org.apache.camel.CamelContext;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.jpos.iso.ISOException;
@@ -57,6 +61,13 @@ public class SystemBootstrap {
     private TelemetryRegistry telemetryRegistry;
     private SEEngine SEEngine;
 
+    static {
+        // For testing purpose
+        if (System.getProperty("base.dir") == null) {
+            System.setProperty("base.dir", "C:\\Users\\ari.patriana\\DATA\\Project\\Github\\socket-edge\\src\\main\\resources");
+        }
+    }
+
     public SystemBootstrap(String[] args) {
 
     }
@@ -90,7 +101,30 @@ public class SystemBootstrap {
         correlationStore = new CacheCorrelationStore(cu.getInt("engine.cache.ttl", 30000));
         channelCfgProcessor = new ChannelCfgProcessor();
         channelCfgSelector = new ChannelCfgSelector();
-        telemetryRegistry = new TelemetryRegistry(new SimpleMeterRegistry());
+
+        boolean enableJmxMeter = Boolean.parseBoolean(
+                System.getProperty("jmx.meter.enabled", "false")
+        );
+
+        MeterRegistry meterRegistry = null;
+        if (enableJmxMeter) {
+            log.info("JMX Meter Registry ENABLED");
+
+            JmxConfig config = new JmxConfig() {
+                @Override
+                public String get(String key) {
+                    if ("jmx.domain".equals(key)) {
+                        return "socket.edge";
+                    }
+                    return null;
+                }
+            };
+            meterRegistry = new JmxMeterRegistry(config, Clock.SYSTEM);
+        } else {
+            log.info("JMX Meter Registry DISABLED (using SimpleMeterRegistry)");
+            meterRegistry = new SimpleMeterRegistry();
+        }
+        telemetryRegistry = new TelemetryRegistry(meterRegistry);
     }
 
     public void loadChannelConfiguration() throws IOException {
