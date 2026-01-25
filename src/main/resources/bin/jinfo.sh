@@ -74,13 +74,13 @@ G="\e[32m"; R="\e[31m"; NC="\e[0m"
 
 # ================= TABLE =================
 print_top() {
-  printf "${G}┌──────────────────────────────────┬──────────────────────┬──────────────────────┬────────────┬──────────┬──────────┬──────────┬────────┐${NC}\n"
+  printf "${G}┌──────────┬──────────────────────────────────┬──────────────────────┬──────────────────────┬──────┬──────────┬──────────┬──────────┬────────┐${NC}\n"
 }
 print_sep() {
-  printf "${G}├──────────────────────────────────┼──────────────────────┼──────────────────────┼────────────┼──────────┼──────────┼──────────┼────────┤${NC}\n"
+  printf "${G}├──────────┼──────────────────────────────────┼──────────────────────┼──────────────────────┼──────┼──────────┼──────────┼──────────┼────────┤${NC}\n"
 }
 print_bottom() {
-  printf "${G}└──────────────────────────────────┴──────────────────────┴──────────────────────┴────────────┴──────────┴──────────┴──────────┴────────┘${NC}\n"
+  printf "${G}└──────────┴──────────────────────────────────┴──────────────────────┴──────────────────────┴──────┴──────────┴──────────┴──────────┴────────┘${NC}\n"
 }
 
 # ================= RENDER =================
@@ -89,8 +89,8 @@ render() {
   clear
 
   print_top
-  printf "${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} %-10s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
-    "ID" "LOCAL_HOST" "REMOTE_HOST" "CONNECTED" "UPTIME" "LAST_C" "LAST_D" "STATUS"
+  printf "${G}│${NC} %-8s ${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} %-4s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
+    "ID" "SOCKET_ID" "LOCAL_HOST" "REMOTE_HOST" "CONN" "UPTIME" "LAST_C" "LAST_D" "STATUS"
   print_sep
 
   $JQ -r '
@@ -114,9 +114,10 @@ render() {
     | sort_by(.id)
     | .[]
     | [
+        .hashId,
         .id,
-        (.localHost // "-"),
-        (.remoteHost // "-"),
+        (.localHost | select(. != "") // "-"),
+        (.remoteHost | select(. != "") // "-"),
         (.active | tostring),
         fmt_since(.startTime),
         fmt_since(.lastConnect),
@@ -125,17 +126,17 @@ render() {
       ]
     | @tsv
   ' <<<"$json" |
-  while IFS=$'\t' read -r id local remote conn uptime lc ld status; do
+  while IFS=$'\t' read -r hashId id local remote conn uptime lc ld status; do
     conn_color="$G"
     [[ "$conn" == "0" ]] && conn_color="$R"
 
     IFS=',' read -ra REMOTES <<< "$remote"
 
-    printf "${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} ${conn_color}%-10s${NC} ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
-      "$id" "$local" "${REMOTES[0]}" "$conn" "$uptime" "$lc" "$ld" "$status"
+    printf "${G}│${NC} %-8s ${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} ${conn_color}%-4s${NC} ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
+      "$hashId" "$id" "$local" "${REMOTES[0]}" "$conn" "$uptime" "$lc" "$ld" "$status"
 
     for ((i=1; i<${#REMOTES[@]}; i++)); do
-      printf "${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} %-10s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
+      printf "${G}│${NC} %-8s ${G}│${NC} %-32s ${G}│${NC} %-20s ${G}│${NC} %-20s ${G}│${NC} %-4s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-8s ${G}│${NC} %-6s ${G}│${NC}\n" \
         "" "" "${REMOTES[$i]}" "" "" "" "" ""
     done
   done
