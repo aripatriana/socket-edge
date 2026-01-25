@@ -335,7 +335,14 @@ public class SocketTelemetry {
         if (socket != null) {
             starttime = socket.getStartTime();
             List<SocketChannel> channels =
-                    socket.channelPool().activeChannels();
+                    socket.channelPool()
+                            .activeChannels()
+                            .stream()
+                            .filter(Objects::nonNull)
+                            .filter(sc -> sc.getSocketEndpoint() != null)
+                            .filter(sc -> Objects.equals(sc.getSocketEndpoint().id(), se.id()))
+                            .collect(Collectors.toList());
+
             active = channels.size();
             if (socket instanceof NettyServerSocket server) {
                 localHost = extractServerLocalHost(server);
