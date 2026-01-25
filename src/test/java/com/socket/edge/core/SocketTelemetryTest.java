@@ -6,6 +6,7 @@ import com.socket.edge.core.socket.SocketChannelPooling;
 import com.socket.edge.model.EndpointKey;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.Queue;
+import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.utils.CommonUtil;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,11 +40,11 @@ class SocketTelemetryTest {
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
-
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
         when(socket.getId()).thenReturn("sock-1");
         when(socket.getName()).thenReturn("ISO-SOCKET");
         when(socket.getType()).thenReturn(SocketType.CLIENT);
-        telemetry = new SocketTelemetry(registry, socket, CommonUtil.hashId(socket.getId(), EndpointKey.from("127.0.0.1", 7000).id()));
+        telemetry = new SocketTelemetry(CommonUtil.hashId(socket.getId(), se.id().id()),registry, socket, se);
     }
 
     @Test
