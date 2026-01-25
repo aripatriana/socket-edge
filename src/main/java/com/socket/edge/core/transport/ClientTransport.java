@@ -54,8 +54,7 @@ public final class ClientTransport implements Transport {
                 .map(AbstractSocket::channelPool)
                 .filter(Objects::nonNull)
                 .mapToLong(p -> p.getVersion().get())
-                .max()
-                .orElse(-1L);
+                .sum();
 
         SocketChannel channel = strategy.next(new VersionedCandidates<>(version, actives), ctx);
         channel.increment();

@@ -116,6 +116,7 @@ public abstract class AbstractSocket {
         channelPool().getAllChannel().stream()
                 .filter(sc -> sc.getSocketEndpoint().id().equals(key))
                 .forEach(sc -> sc.setSocketEndpoint(newEp));
+        channelPool().updateVersion();
     }
 
 }

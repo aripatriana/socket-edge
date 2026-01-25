@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class SocketChannelPooling {
 
-    private final AtomicLong version = new AtomicLong(0);
+    private final AtomicLong version = new AtomicLong(1);
     private AbstractSocket abstractSocket;
     private final ConcurrentMap<ChannelId, SocketChannel> activeChannels = new ConcurrentHashMap<>();
     private final ConcurrentMap<EndpointKey, Set<SocketChannel>> endpointIndex = new ConcurrentHashMap<>();
@@ -53,7 +53,7 @@ public class SocketChannelPooling {
         endpointIndex
                 .computeIfAbsent(EndpointKey.from(se), k -> ConcurrentHashMap.newKeySet())
                 .add(sc);
-        version.incrementAndGet();
+        updateVersion();
         return true;
     }
 
@@ -70,7 +70,7 @@ public class SocketChannelPooling {
             }
         });
 
-        version.incrementAndGet();
+        updateVersion();
         return channels.size();
     }
 
@@ -88,7 +88,7 @@ public class SocketChannelPooling {
             if (set.isEmpty()) {
                 endpointIndex.remove(key);
             }
-            version.incrementAndGet();
+            updateVersion();
         }
     }
 
@@ -129,5 +129,9 @@ public class SocketChannelPooling {
 
     public AtomicLong getVersion() {
         return version;
+    }
+
+    public void updateVersion() {
+        version.incrementAndGet();
     }
 }
