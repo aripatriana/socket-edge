@@ -2,9 +2,9 @@ package com.socket.edge.core.transport;
 
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.AbstractSocket;
-import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.strategy.SelectionStrategy;
+import com.socket.edge.model.VersionedCandidates;
 
 import java.util.List;
 
@@ -23,7 +23,6 @@ public final class ServerTransport implements Transport {
 
     @Override
     public void send(MessageContext ctx) {
-
         List<SocketChannel> actives =
                 socket.channelPool().activeChannels();
 
@@ -33,7 +32,8 @@ public final class ServerTransport implements Transport {
             );
         }
 
-        SocketChannel channel = strategy.next(actives, ctx);
+        long version = socket.channelPool().getVersion().get();
+        SocketChannel channel = strategy.next(new VersionedCandidates<>(version, actives), ctx);
         channel.increment();
 
         ctx.addProperty("back_forward_channel", channel);

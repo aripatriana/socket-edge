@@ -1,8 +1,8 @@
 package com.socket.edge.core.strategy;
 
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.model.VersionedCandidates;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -15,15 +15,15 @@ public final class HashStrategy<T>
         this.keyExtractor = Objects.requireNonNull(keyExtractor);
     }
     @Override
-    public T next(List<T> candidates, MessageContext ctx) {
-        validate(candidates);
+    public T next(VersionedCandidates<T> vc, MessageContext ctx) {
+        validate(vc.candidates());
 
         String key = keyExtractor.apply(ctx);
         if (key == null) {
             throw new IllegalStateException("Hash key must not be null");
         }
 
-        int idx = Math.floorMod(key.hashCode(), candidates.size());
-        return candidates.get(idx);
+        int idx = Math.floorMod(key.hashCode(), vc.candidates().size());
+        return vc.candidates().get(idx);
     }
 }

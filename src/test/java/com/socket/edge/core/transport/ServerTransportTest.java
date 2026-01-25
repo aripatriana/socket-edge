@@ -5,11 +5,13 @@ import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.socket.SocketChannelPooling;
 import com.socket.edge.core.strategy.SelectionStrategy;
+import com.socket.edge.model.VersionedCandidates;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -38,7 +40,8 @@ class ServerTransportTest {
         byte[] payload = new byte[]{0x10, 0x20};
 
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
-        when(strategy.next(anyList(), eq(ctx))).thenReturn(channel);
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
+        when(strategy.next(any(), eq(ctx))).thenReturn(channel);
         when(ctx.getRawBytes()).thenReturn(payload);
 
         ServerTransport transport =
@@ -46,7 +49,7 @@ class ServerTransportTest {
 
         transport.send(ctx);
 
-        verify(strategy).next(anyList(), eq(ctx));
+        verify(strategy).next(any(), eq(ctx));
         verify(channel).increment();
         verify(channel).send(payload);
         verify(ctx).addProperty("back_forward_channel", channel);
@@ -74,7 +77,8 @@ class ServerTransportTest {
         SocketChannel ch2 = mock(SocketChannel.class);
 
         when(channelPool.activeChannels()).thenReturn(List.of(ch1, ch2));
-        when(strategy.next(anyList(), eq(ctx))).thenReturn(ch1);
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
+        when(strategy.next(any(), eq(ctx))).thenReturn(ch1);
         when(ctx.getRawBytes()).thenReturn(new byte[]{0x01});
 
         ServerTransport transport =
@@ -82,12 +86,12 @@ class ServerTransportTest {
 
         transport.send(ctx);
 
-        ArgumentCaptor<List<SocketChannel>> captor =
-                ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<VersionedCandidates> captor =
+                ArgumentCaptor.forClass(VersionedCandidates.class);
 
         verify(strategy).next(captor.capture(), eq(ctx));
 
-        List<SocketChannel> candidates = captor.getValue();
+        List<SocketChannel> candidates = captor.getValue().candidates();
         assertEquals(2, candidates.size());
         assertTrue(candidates.contains(ch1));
         assertTrue(candidates.contains(ch2));
@@ -96,7 +100,8 @@ class ServerTransportTest {
     @Test
     void send_shouldHandleEmptyPayload() {
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
-        when(strategy.next(anyList(), eq(ctx))).thenReturn(channel);
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
+        when(strategy.next(any(), eq(ctx))).thenReturn(channel);
         when(ctx.getRawBytes()).thenReturn(new byte[0]);
 
         ServerTransport transport =

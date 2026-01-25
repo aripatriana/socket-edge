@@ -9,9 +9,11 @@ import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class SocketChannelPooling {
 
+    private final AtomicLong version = new AtomicLong(0);
     private AbstractSocket abstractSocket;
     private final ConcurrentMap<ChannelId, SocketChannel> activeChannels = new ConcurrentHashMap<>();
     private final ConcurrentMap<EndpointKey, Set<SocketChannel>> endpointIndex = new ConcurrentHashMap<>();
@@ -51,6 +53,7 @@ public class SocketChannelPooling {
         endpointIndex
                 .computeIfAbsent(EndpointKey.from(se), k -> ConcurrentHashMap.newKeySet())
                 .add(sc);
+        version.incrementAndGet();
         return true;
     }
 
@@ -67,6 +70,7 @@ public class SocketChannelPooling {
             }
         });
 
+        version.incrementAndGet();
         return channels.size();
     }
 
@@ -84,6 +88,7 @@ public class SocketChannelPooling {
             if (set.isEmpty()) {
                 endpointIndex.remove(key);
             }
+            version.incrementAndGet();
         }
     }
 
@@ -122,4 +127,7 @@ public class SocketChannelPooling {
         endpointIndex.clear();
     }
 
+    public AtomicLong getVersion() {
+        return version;
+    }
 }

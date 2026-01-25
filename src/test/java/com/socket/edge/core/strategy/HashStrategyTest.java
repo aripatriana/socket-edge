@@ -1,6 +1,7 @@
 package com.socket.edge.core.strategy;
 
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.model.VersionedCandidates;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -18,9 +19,9 @@ public class HashStrategyTest {
                 new HashStrategy<>(ctx -> "user-1");
 
         List<String> list = List.of("A", "B", "C");
-
-        String r1 = strategy.next(list, null);
-        String r2 = strategy.next(list, null);
+        VersionedCandidates vc = new VersionedCandidates<>(1,list);
+        String r1 = strategy.next(vc, null);
+        String r2 = strategy.next(vc, null);
 
         assertEquals(r1, r2);
     }
@@ -34,10 +35,10 @@ public class HashStrategyTest {
 
         MessageContext ctx = new TestMessageContext()
                 .with("user", "ari");
-
-        String r1 = strategy.next(candidates, ctx);
-        String r2 = strategy.next(candidates, ctx);
-        String r3 = strategy.next(candidates, ctx);
+        VersionedCandidates vc = new VersionedCandidates<>(1,candidates);
+        String r1 = strategy.next(vc, ctx);
+        String r2 = strategy.next(vc, ctx);
+        String r3 = strategy.next(vc, ctx);
 
         assertEquals(r1, r2);
         assertEquals(r2, r3);
@@ -49,14 +50,14 @@ public class HashStrategyTest {
                 new HashStrategy<>(ctx -> ctx.field("user"));
 
         List<String> candidates = List.of("A", "B", "C");
-
+        VersionedCandidates vc = new VersionedCandidates<>(1,candidates);
         String r1 = strategy.next(
-                candidates,
+                vc,
                 new TestMessageContext().with("user", "user-1")
         );
 
         String r2 = strategy.next(
-                candidates,
+                vc,
                 new TestMessageContext().with("user", "user-999")
         );
 
@@ -71,9 +72,9 @@ public class HashStrategyTest {
                 new HashStrategy<>(ctx -> "AaAaAaAaAaAaAaAa");
 
         List<String> candidates = List.of("A", "B", "C");
-
+        VersionedCandidates vc = new VersionedCandidates<>(1,candidates);
         assertDoesNotThrow(() ->
-                strategy.next(candidates, null)
+                strategy.next(vc, null)
         );
     }
 
@@ -83,10 +84,10 @@ public class HashStrategyTest {
                 new HashStrategy<>(ctx -> ctx.field("missing"));
 
         MessageContext ctx = new TestMessageContext();
-
+        VersionedCandidates vc = new VersionedCandidates<>(1,List.of("A"));
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class,
-                () -> strategy.next(List.of("A"), ctx)
+                () -> strategy.next(vc, ctx)
         );
 
         assertTrue(ex.getMessage().contains("Hash key"));
@@ -96,9 +97,9 @@ public class HashStrategyTest {
     void emptyCandidates_shouldThrow() {
         HashStrategy<String> strategy =
                 new HashStrategy<>(ctx -> "key");
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of());
         assertThrows(IllegalStateException.class,
-                () -> strategy.next(List.of(), null));
+                () -> strategy.next(vc, null));
     }
 
     @Test
@@ -108,8 +109,8 @@ public class HashStrategyTest {
 
         List<Integer> candidates =
                 IntStream.range(0, 10_000).boxed().toList();
-
-        Integer result = strategy.next(candidates, null);
+        VersionedCandidates vc = new VersionedCandidates<>(1, candidates);
+        Integer result = strategy.next(vc, null);
 
         assertNotNull(result);
         assertTrue(result >= 0 && result < 10_000);
@@ -123,11 +124,11 @@ public class HashStrategyTest {
         List<String> candidates = List.of("A", "B", "C", "D");
 
         Map<String, Integer> count = new HashMap<>();
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, candidates);
         for (int i = 0; i < 1_000; i++) {
             String key = "user-" + i;
             String r = strategy.next(
-                    candidates,
+                    vc,
                     new TestMessageContext().with("user", key)
             );
             count.merge(r, 1, Integer::sum);

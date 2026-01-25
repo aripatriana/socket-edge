@@ -6,11 +6,13 @@ import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.socket.SocketChannelPooling;
 import com.socket.edge.core.strategy.SelectionStrategy;
 import com.socket.edge.constant.SocketState;
+import com.socket.edge.model.VersionedCandidates;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -38,8 +40,9 @@ class ClientTransportTest {
 
         when(clientSocket.channelPool()).thenReturn(channelPool);
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(0));
         when(channel.isActive()).thenReturn(true);
-        when(strategy.next(anyList(), eq(ctx))).thenReturn(channel);
+        when(strategy.next(any(), eq(ctx))).thenReturn(channel);
         when(ctx.getRawBytes()).thenReturn(payload);
 
         ClientTransport transport =
@@ -47,7 +50,7 @@ class ClientTransportTest {
 
         transport.send(ctx);
 
-        verify(strategy).next(anyList(), eq(ctx));
+        verify(strategy).next(any(), eq(ctx));
         verify(channel).increment();
         verify(channel).send(payload);
         verify(ctx).addProperty("back_forward_channel", channel);
@@ -110,7 +113,8 @@ class ClientTransportTest {
 
         when(clientSocket.channelPool()).thenReturn(channelPool);
         when(channelPool.activeChannels()).thenReturn(List.of(active, inactive));
-        when(strategy.next(anyList(), eq(ctx))).thenReturn(active);
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(0));
+        when(strategy.next(any(), eq(ctx))).thenReturn(active);
         when(ctx.getRawBytes()).thenReturn(new byte[]{0x01});
 
         ClientTransport transport =
@@ -118,12 +122,12 @@ class ClientTransportTest {
 
         transport.send(ctx);
 
-        ArgumentCaptor<List<SocketChannel>> captor =
-                ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<VersionedCandidates> captor =
+                ArgumentCaptor.forClass(VersionedCandidates.class);
 
         verify(strategy).next(captor.capture(), eq(ctx));
 
-        List<SocketChannel> candidates = captor.getValue();
+        List<SocketChannel> candidates = captor.getValue().candidates();
         assertEquals(1, candidates.size());
         assertTrue(candidates.contains(active));
     }

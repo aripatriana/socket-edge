@@ -1,5 +1,6 @@
 package com.socket.edge.core.strategy;
 
+import com.socket.edge.model.VersionedCandidates;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -17,12 +18,12 @@ public class RoundRobinStrategyTest {
         TestCandidate b = new TestCandidate("B", 1, 1, 0);
 
         List<TestCandidate> list = List.of(a, b);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         int countA = 0;
         int countB = 0;
 
         for (int i = 0; i < 40; i++) {
-            TestCandidate c = strategy.next(list, null);
+            TestCandidate c = strategy.next(vc, null);
             if (c.toString().equals("A")) countA++;
             else countB++;
         }
@@ -35,8 +36,9 @@ public class RoundRobinStrategyTest {
         SelectionStrategy<WeightedCandidate> strategy =
                 SelectionFactory.roundRobin();
 
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of());
         assertThrows(IllegalStateException.class,
-                () -> strategy.next(List.of(), null));
+                () -> strategy.next(vc, null));
     }
 
     @Test
@@ -48,9 +50,9 @@ public class RoundRobinStrategyTest {
         TestCandidate low  = new TestCandidate("LOW", 10, 1, 0);
 
         List<TestCandidate> list = List.of(high, low);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         for (int i = 0; i < 20; i++) {
-            TestCandidate result = strategy.next(list, null);
+            TestCandidate result = strategy.next(vc, null);
             assertEquals("HIGH", result.toString());
         }
     }
@@ -64,13 +66,13 @@ public class RoundRobinStrategyTest {
         TestCandidate b = new TestCandidate("B", 1, 1, 0);
 
         List<TestCandidate> list = List.of(a, b);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         Map<String, Integer> count = new HashMap<>();
 
         int cycles = 40;
 
         for (int i = 0; i < cycles; i++) {
-            String id = strategy.next(list, null).toString();
+            String id = strategy.next(vc, null).toString();
             count.merge(id, 1, Integer::sum);
         }
 
@@ -88,16 +90,16 @@ public class RoundRobinStrategyTest {
         TestCandidate b = new TestCandidate("B", 1, 1, 0);
 
         List<TestCandidate> list = List.of(a, b);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         List<String> firstCycle = new ArrayList<>();
         List<String> secondCycle = new ArrayList<>();
 
         for (int i = 0; i < 3; i++) {
-            firstCycle.add(strategy.next(list, null).toString());
+            firstCycle.add(strategy.next(vc, null).toString());
         }
 
         for (int i = 0; i < 3; i++) {
-            secondCycle.add(strategy.next(list, null).toString());
+            secondCycle.add(strategy.next(vc, null).toString());
         }
 
         assertEquals(firstCycle, secondCycle);
@@ -112,11 +114,11 @@ public class RoundRobinStrategyTest {
         TestCandidate b = new TestCandidate("B", -5, 1, 0);
 
         List<TestCandidate> list = List.of(a, b);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         Set<String> seen = new HashSet<>();
 
         for (int i = 0; i < 10; i++) {
-            seen.add(strategy.next(list, null).toString());
+            seen.add(strategy.next(vc, null).toString());
         }
 
         assertEquals(Set.of("A", "B"), seen);
@@ -128,9 +130,9 @@ public class RoundRobinStrategyTest {
                 new RoundRobinStrategy<>();
 
         TestCandidate a = new TestCandidate("A", 10, 99, 0);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of(a));
         for (int i = 0; i < 10; i++) {
-            assertSame(a, strategy.next(List.of(a), null));
+            assertSame(a, strategy.next(vc, null));
         }
     }
 
@@ -143,9 +145,9 @@ public class RoundRobinStrategyTest {
         TestCandidate b = new TestCandidate("B", 1, 2, 0);
 
         List<TestCandidate> list = List.of(a, b);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         assertEquals("B",
-                strategy.next(list, null).toString());
+                strategy.next(vc, null).toString());
     }
 
 }

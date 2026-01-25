@@ -1,5 +1,6 @@
 package com.socket.edge.core.strategy;
 
+import com.socket.edge.model.VersionedCandidates;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -21,9 +22,9 @@ public class LeastConnectionStrategyTest {
         TestCandidate a = new TestCandidate("A", 1, 1, 10);
         TestCandidate b = new TestCandidate("B", 1, 1, 2);
         TestCandidate c = new TestCandidate("C", 1, 1, 7);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of(a, b, c));
         TestCandidate result =
-                strategy.next(List.of(a, b, c), null);
+                strategy.next(vc, null);
 
         assertEquals("B", result.toString());
     }
@@ -35,17 +36,17 @@ public class LeastConnectionStrategyTest {
 
         TestCandidate a = new TestCandidate("A", 1, 1, 1);
         TestCandidate b = new TestCandidate("B", 1, 1, 2);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of(a, b));
         // awal
         assertEquals("A",
-                strategy.next(List.of(a, b), null).toString());
+                strategy.next(vc, null).toString());
 
         // simulate load
         a.increment(); // A = 2
         a.increment(); // A = 3
 
         assertEquals("B",
-                strategy.next(List.of(a, b), null).toString());
+                strategy.next(vc, null).toString());
     }
 
     @Test
@@ -55,12 +56,12 @@ public class LeastConnectionStrategyTest {
 
         TestCandidate a = new TestCandidate("A", 1, 1, 5);
         TestCandidate b = new TestCandidate("B", 1, 1, 5);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of(a, b));
         TestCandidate r1 =
-                strategy.next(List.of(a, b), null);
+                strategy.next(vc, null);
 
         TestCandidate r2 =
-                strategy.next(List.of(a, b), null);
+                strategy.next(vc, null);
 
         assertEquals(r1, r2);
     }
@@ -71,10 +72,10 @@ public class LeastConnectionStrategyTest {
                 new LeastConnectionStrategy<>();
 
         TestCandidate a = new TestCandidate("A", 1, 1, 0);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of(a));
         for (int i = 0; i < 10; i++) {
             a.increment();
-            assertSame(a, strategy.next(List.of(a), null));
+            assertSame(a, strategy.next(vc, null));
         }
     }
 
@@ -85,9 +86,9 @@ public class LeastConnectionStrategyTest {
 
         TestCandidate a = new TestCandidate("A", 1, 1, -5);
         TestCandidate b = new TestCandidate("B", 1, 1, 0);
-
+        VersionedCandidates vc = new VersionedCandidates<>(1, List.of(a, b));
         TestCandidate result =
-                strategy.next(List.of(a, b), null);
+                strategy.next(vc, null);
 
         assertEquals("A", result.toString());
     }
@@ -99,7 +100,7 @@ public class LeastConnectionStrategyTest {
 
         assertThrows(
                 IllegalStateException.class,
-                () -> strategy.next(List.of(), null)
+                () -> strategy.next(new VersionedCandidates<>(1, List.of()), null)
         );
     }
 
@@ -115,6 +116,7 @@ public class LeastConnectionStrategyTest {
 
         ExecutorService es = Executors.newFixedThreadPool(8);
 
+        VersionedCandidates vc = new VersionedCandidates<>(1, list);
         Runnable incA = () -> {
             for (int i = 0; i < 100; i++) a.increment();
         };
@@ -122,9 +124,8 @@ public class LeastConnectionStrategyTest {
         Runnable incB = () -> {
             for (int i = 0; i < 50; i++) b.increment();
         };
-
         Callable<TestCandidate> select =
-                () -> strategy.next(list, null);
+                () -> strategy.next(vc, null);
 
         es.submit(incA);
         es.submit(incB);
