@@ -94,9 +94,8 @@ public class SocketTelemetry {
         this.type = socket.getType().name();
 
         Tags tags = Tags.of(
-                "name", name,
-                "id", id,
-                "type", type
+                "id", hashId,
+                "socketId", id
         );
 
         initMeters(tags);
