@@ -1,6 +1,7 @@
 package com.socket.edge.model;
 
 public record RuntimeState(
+    String hashId,
     String id,
     String name,
     String type,

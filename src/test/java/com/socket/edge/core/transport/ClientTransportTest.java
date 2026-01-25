@@ -3,7 +3,7 @@ package com.socket.edge.core.transport;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.NettyClientSocket;
 import com.socket.edge.core.socket.SocketChannel;
-import com.socket.edge.core.socket.SocketChannelPool;
+import com.socket.edge.core.socket.SocketChannelPooling;
 import com.socket.edge.core.strategy.SelectionStrategy;
 import com.socket.edge.constant.SocketState;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +19,7 @@ class ClientTransportTest {
 
     private SelectionStrategy<SocketChannel> strategy;
     private NettyClientSocket clientSocket;
-    private SocketChannelPool channelPool;
+    private SocketChannelPooling channelPool;
     private SocketChannel channel;
     private MessageContext ctx;
 
@@ -27,7 +27,7 @@ class ClientTransportTest {
     void setUp() {
         strategy = mock(SelectionStrategy.class);
         clientSocket = mock(NettyClientSocket.class);
-        channelPool = mock(SocketChannelPool.class);
+        channelPool = mock(SocketChannelPooling.class);
         channel = mock(SocketChannel.class);
         ctx = mock(MessageContext.class);
     }

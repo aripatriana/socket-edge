@@ -14,9 +14,9 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(ChannelInboundAdapter.class);
 
-    private SocketChannelPool channelPool;
+    private SocketChannelPooling channelPool;
 
-    public ChannelInboundAdapter(SocketChannelPool channelPool) {
+    public ChannelInboundAdapter(SocketChannelPooling channelPool) {
         this.channelPool = channelPool;
     }
 
@@ -27,7 +27,6 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        super.channelActive(ctx);
         Channel ch = ctx.channel();
         ChannelFuture channelFuture = ch.closeFuture();
         if(!channelFuture.channel().isActive()){
@@ -39,6 +38,7 @@ public class ChannelInboundAdapter extends ChannelInboundHandlerAdapter {
         InetSocketAddress local =
                 (InetSocketAddress) ch.localAddress();
         if (channelPool.addChannel(ch)) {
+            super.channelActive(ctx);
             log.info(
                     "CHANNEL ACTIVE | id={} | remote={}:{} | local={}:{} | thread={}",
                     ch.id().asShortText(),

@@ -30,7 +30,7 @@ public class CommonUtil {
         return String.format("%s-client-%s-%d", name, host, port);
     }
 
-    public static String channelId(String socketId, String endpointId) {
+    public static String hashId(String socketId, String endpointId) {
         return String.format("%08d", identity(socketId, endpointId));
     }
 

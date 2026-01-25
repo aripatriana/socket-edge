@@ -145,9 +145,7 @@ public class ReloadCfgService {
                     newEp.priority()
             );
 
-            socket.channelPool()
-                .getAllChannel()
-                .forEach(ch -> ch.setSocketEndpoint(newEp));
+            socket.updateEndpointProperties(newEp);
         });
     }
 
@@ -168,14 +166,24 @@ public class ReloadCfgService {
                 return;
             }
 
-            socket.channelPool().removeByEndpoint(endpoint);
+            socket.removeEndpoint(endpoint.id());
         });
 
         // Added endpoints
         serverDiff.addedEndpoints().forEach(endpoint -> {
             log.info("Server endpoint added: {}:{}", endpoint.host(), endpoint.port());
-//            AbstractSocket socket = socketManager.create(newCfg, endpoint);
-//            socketManager.start(socket);
+            String serverId = CommonUtil.serverId(
+                    newCfg.name(),
+                    endpoint.port()
+            );
+
+            AbstractSocket socket = socketManager.getSocket(serverId);
+            if (socket == null) {
+                log.warn("Server socket not found for {}", serverId);
+                return;
+            }
+
+            socket.addEndpoint(endpoint);
         });
 
         serverDiff.modifiedEndpoints().forEach(diff -> {
@@ -199,9 +207,7 @@ public class ReloadCfgService {
                     newEp.priority()
             );
 
-            socket.channelPool()
-                    .getAllChannel()
-                    .forEach(ch -> ch.setSocketEndpoint(newEp));
+            socket.updateEndpointProperties(newEp);
         });
     }
 

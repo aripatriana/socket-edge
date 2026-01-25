@@ -4,6 +4,8 @@ import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.Queue;
 import com.socket.edge.model.RuntimeState;
+import com.socket.edge.model.SocketEndpoint;
+import com.socket.edge.utils.CommonUtil;
 import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.*;
@@ -23,30 +25,45 @@ public class TelemetryRegistry {
         this.registry = registry;
     }
 
-    public SocketTelemetry register(AbstractSocket socket) {
+    public SocketTelemetry register(AbstractSocket socket, SocketEndpoint se) {
+        String hashId = CommonUtil.hashId(socket.getId(), se.id().id());
         SocketTelemetry telemetry = byId.computeIfAbsent(
-                socket.getId(),
-                k -> new SocketTelemetry(registry, socket)
+                hashId,
+                k -> new SocketTelemetry(registry, socket, hashId)
         );
 
         nameToIds
                 .computeIfAbsent(socket.getName(), k -> ConcurrentHashMap.newKeySet())
-                .add(socket.getId());
+                .add(hashId);
 
         return telemetry;
     }
 
-    public SocketTelemetry unregister(AbstractSocket socket) {
+    public void unregister(AbstractSocket socket) {
         // remove from name index
+        Set<String> ids = nameToIds.remove(socket.getName());
+        if (ids != null) {
+            ids.forEach(id -> {
+                SocketTelemetry telemetry = byId.remove(socket.getId());
+                if (telemetry != null) {
+                    telemetry.dispose();
+                }
+            });
+        }
+    }
+
+    public SocketTelemetry unregister(AbstractSocket socket, SocketEndpoint se) {
+        // remove from name index
+        String hashId = CommonUtil.hashId(socket.getId(), se.id().id());
         Set<String> ids = nameToIds.get(socket.getName());
         if (ids != null) {
-            ids.remove(socket.getId());
+            ids.remove(hashId);
             if (ids.isEmpty()) {
                 nameToIds.remove(socket.getName());
             }
         }
 
-        SocketTelemetry telemetry = byId.remove(socket.getId());
+        SocketTelemetry telemetry = byId.remove(hashId);
         if (telemetry != null) {
             telemetry.dispose();
         }

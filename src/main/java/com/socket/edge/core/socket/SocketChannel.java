@@ -1,6 +1,7 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.LoadAware;
+import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.strategy.WeightedCandidate;
 import com.socket.edge.model.SocketEndpoint;
 import io.netty.buffer.Unpooled;
@@ -20,21 +21,31 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
     private final Channel channel;
     private final AtomicInteger inflight = new AtomicInteger(0);
     private String socketId;
-    private SocketEndpoint se;
+    private SocketEndpoint socketEndpoint;
+    private SocketTelemetry socketTelemetry;
 
-    public SocketChannel(String socketId, Channel channel, SocketEndpoint se) {
+    public SocketChannel(String socketId, Channel channel, SocketEndpoint socketEndpoint, SocketTelemetry socketTelemetry) {
         this.socketId = socketId;
         this.channel = channel;
         this.channelId = channel.id();
-        this.se = se;
+        this.socketEndpoint = socketEndpoint;
+        this.socketTelemetry = socketTelemetry;
     }
 
-    public void setSocketEndpoint(SocketEndpoint se) {
-        this.se = se;
+    public SocketTelemetry getSocketTelemetry() {
+        return socketTelemetry;
+    }
+
+    public void setSocketTelemetry(SocketTelemetry socketTelemetry) {
+        this.socketTelemetry = socketTelemetry;
     }
 
     public SocketEndpoint getSocketEndpoint() {
-        return se;
+        return socketEndpoint;
+    }
+
+    public void setSocketEndpoint(SocketEndpoint socketEndpoint) {
+        this.socketEndpoint = socketEndpoint;
     }
 
     public Channel channel() {
@@ -83,11 +94,11 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
 
     @Override
     public int getWeight() {
-        return se.getWeight();
+        return socketEndpoint.getWeight();
     }
 
     @Override
     public int getPriority() {
-        return se.getPriority();
+        return socketEndpoint.getPriority();
     }
 }

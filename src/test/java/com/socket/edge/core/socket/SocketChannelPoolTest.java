@@ -1,6 +1,5 @@
 package com.socket.edge.core.socket;
 
-import com.socket.edge.constant.SocketType;
 import com.socket.edge.model.SocketEndpoint;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
@@ -18,15 +17,17 @@ import static org.mockito.Mockito.*;
 class SocketChannelPoolTest {
 
     private SocketEndpoint endpoint;
-    private SocketChannelPool pool;
+    private SocketChannelPooling pool;
 
     @BeforeEach
     void setup() {
         endpoint = new SocketEndpoint("127.0.0.1", 9000, 1, 1);
-        pool = new SocketChannelPool(
-                "socket-1",
-                SocketType.CLIENT,
-                List.of(endpoint)
+        AbstractSocket socket = mock(AbstractSocket.class);
+        when(socket.resolveEndpoint(endpoint.id())).thenReturn(endpoint);
+        when(socket.resolveEndpoint(endpoint.id().host(), endpoint.id().port())).thenReturn(endpoint);
+
+        pool = new SocketChannelPooling(
+                socket
         );
     }
 
@@ -134,7 +135,7 @@ class SocketChannelPoolTest {
         pool.addChannel(ch1);
         pool.addChannel(ch2);
 
-        int removed = pool.removeByEndpoint(endpoint);
+        int removed = pool.removeByEndpoint(endpoint.id());
 
         assertEquals(2, removed);
         assertTrue(pool.getAllChannel().isEmpty());

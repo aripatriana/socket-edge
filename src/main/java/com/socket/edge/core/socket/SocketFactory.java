@@ -25,6 +25,7 @@ public class SocketFactory {
     public AbstractSocket createServer(ChannelCfg cfg) {
         return new NettyServerSocket(
                 cfg.name(),
+                cfg.server().listenHost(),
                 cfg.server().listenPort(),
                 cfg.server().pool(),
                 telemetryRegistry,

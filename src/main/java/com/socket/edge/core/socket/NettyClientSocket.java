@@ -1,7 +1,6 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.core.ForwardService;
-import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.constant.SocketState;
@@ -19,7 +18,6 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -41,20 +39,22 @@ public class NettyClientSocket extends AbstractSocket {
     private static final int MAX_BACKOFF_SECONDS = 30;
     private IsoParser parser;
     private ForwardService forward;
-    private SocketChannelPool channelPool;
+    private SocketChannelPooling channelPool;
     private SocketType type = SocketType.CLIENT;
-    private SocketTelemetry socketTelemetry;
     private TelemetryRegistry telemetryRegistry;
 
     public NettyClientSocket(String name, SocketEndpoint se, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
-        super(String.format("%s-client-%s-%d",name, se.host(),se.port()), name);
+        super(String.format("%s-client-%s-%d",name, se.host(),se.port()), name, se.host(), se.port(), telemetryRegistry);
+
         this.host = se.host();
         this.port = se.port();
         this.parser = parser;
         this.forward = forward;
-        this.channelPool = new SocketChannelPool(getId(), type, Collections.singletonList(se));
+
+        addEndpoint(se);
+
         this.telemetryRegistry = telemetryRegistry;
-        this.socketTelemetry = telemetryRegistry.register(this);
+        this.channelPool = new SocketChannelPooling(this);
 
         this.group = new NioEventLoopGroup(
                 1,
@@ -89,7 +89,7 @@ public class NettyClientSocket extends AbstractSocket {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                             ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
                             ch.pipeline().addLast(new ByteDecoder());
-                            ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, socketTelemetry, parser, forward));
+                            ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, parser, forward));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
                         }
@@ -134,7 +134,7 @@ public class NettyClientSocket extends AbstractSocket {
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
-        telemetryRegistry.unregister(this);
+        super.shutdown();
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
@@ -177,7 +177,7 @@ public class NettyClientSocket extends AbstractSocket {
     }
 
     @Override
-    public SocketChannelPool channelPool() {
+    public SocketChannelPooling channelPool() {
         return channelPool;
     }
 

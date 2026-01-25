@@ -2,7 +2,6 @@ package com.socket.edge.core.socket;
 
 import com.socket.edge.model.EndpointKey;
 import com.socket.edge.model.SocketEndpoint;
-import com.socket.edge.constant.SocketType;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
 
@@ -11,19 +10,14 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-public class SocketChannelPool {
+public class SocketChannelPooling {
 
-    private String socketId;
-    private SocketType socketType;
+    private AbstractSocket abstractSocket;
     private final ConcurrentMap<ChannelId, SocketChannel> activeChannels = new ConcurrentHashMap<>();
     private final ConcurrentMap<EndpointKey, Set<SocketChannel>> endpointIndex = new ConcurrentHashMap<>();
 
-    private List<SocketEndpoint> allowlist = new ArrayList<>();
-
-    public SocketChannelPool(String socketId, SocketType socketType, List<SocketEndpoint> allowlist) {
-        this.socketId = socketId;
-        this.socketType = socketType;
-        this.allowlist = List.copyOf(allowlist);;
+    public SocketChannelPooling(AbstractSocket abstractSocket) {
+        this.abstractSocket = abstractSocket;
     }
 
     public boolean addChannel(Channel ch) {
@@ -32,7 +26,7 @@ public class SocketChannelPool {
                         .getAddress()
                         .getHostAddress();
 
-        if (!allowlist.isEmpty() && allowlist.stream()
+        if (!abstractSocket.allowlist().isEmpty() && abstractSocket.allowlist().stream()
                 .noneMatch(ep -> remoteIp.equals(ep.host()))) {
             ch.close();
             return false;
@@ -42,39 +36,26 @@ public class SocketChannelPool {
                 ((InetSocketAddress) ch.remoteAddress())
                         .getPort();
 
-        SocketEndpoint se = resolveEndpoint(remoteIp, remotePort);
+        SocketEndpoint se = abstractSocket.resolveEndpoint(remoteIp, remotePort);
         if (se == null) {
             ch.close();
             return false;
         }
 
-        SocketChannel sc = new SocketChannel(socketId, ch, se);
+        SocketChannel sc = new SocketChannel(abstractSocket.getId(), ch, se, abstractSocket.resolveTelemetry(se.id()));
         SocketChannel existing = activeChannels.putIfAbsent(ch.id(), sc);
         if (existing != null) {
             return false;
         }
+
         endpointIndex
                 .computeIfAbsent(EndpointKey.from(se), k -> ConcurrentHashMap.newKeySet())
                 .add(sc);
         return true;
     }
 
-    private SocketEndpoint resolveEndpoint(String ip, int port) {
-        return socketType == SocketType.SERVER
-                ? allowlist.stream()
-                .filter(ep -> ip.equals(ep.host()))
-                .findFirst()
-                .orElse(null)
-                : allowlist.stream()
-                .filter(ep -> ip.equals(ep.host()) && port == ep.port())
-                .findFirst()
-                .orElse(null);
-    }
-
-    public int removeByEndpoint(SocketEndpoint se) {
-        EndpointKey key = EndpointKey.from(se);
+    public int removeByEndpoint(EndpointKey key) {
         Set<SocketChannel> channels = endpointIndex.remove(key);
-
         if (channels == null || channels.isEmpty()) {
             return 0;
         }

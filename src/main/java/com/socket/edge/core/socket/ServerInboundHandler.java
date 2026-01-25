@@ -21,18 +21,24 @@ public final class ServerInboundHandler
     private final NettyServerSocket serverSocket;
     private final IsoParser isoParser;
     private final ForwardService forwardService;
-    private final SocketTelemetry socketTelemetry;
 
-    public ServerInboundHandler(NettyServerSocket serverSocket, SocketTelemetry socketTelemetry, IsoParser isoParser, ForwardService forwardService) {
+    public ServerInboundHandler(NettyServerSocket serverSocket, IsoParser isoParser, ForwardService forwardService) {
         this.serverSocket = serverSocket;
         this.isoParser = isoParser;
         this.forwardService = forwardService;
-        this.socketTelemetry = socketTelemetry;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         long start = System.nanoTime();
+
+        var socketChannel = serverSocket.channelPool().get(ctx.channel());
+        if (socketChannel == null) {
+            log.warn("SocketChannel not found for {}", ctx.channel().id());
+            return;
+        }
+
+        SocketTelemetry socketTelemetry = socketChannel.getSocketTelemetry();
         socketTelemetry.onMessage();
 
         try {
@@ -56,12 +62,6 @@ public final class ServerInboundHandler
             msgCtx.setOutboundType(SocketType.CLIENT);
             msgCtx.addProperty("receivedTimeNs", start);
             msgCtx.setSocketTelemetry(socketTelemetry);
-
-            var socketChannel = serverSocket.channelPool().get(ctx.channel());
-            if (socketChannel == null) {
-                log.warn("SocketChannel not found for {}", ctx.channel().id());
-                return;
-            }
             msgCtx.setSocketChannel(socketChannel);
 
             forwardService.forward(msgCtx);
@@ -74,13 +74,23 @@ public final class ServerInboundHandler
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         super.channelActive(ctx);
-        socketTelemetry.onConnect();
+        var socketChannel = serverSocket.channelPool().get(ctx.channel());
+        if (socketChannel == null) {
+            log.warn("SocketChannel not found for {}", ctx.channel().id());
+            return;
+        }
+        socketChannel.getSocketTelemetry().onConnect();
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
-        socketTelemetry.onDisconnect();
+        var socketChannel = serverSocket.channelPool().get(ctx.channel());
+        if (socketChannel == null) {
+            log.warn("SocketChannel not found for {}", ctx.channel().id());
+            return;
+        }
+        socketChannel.getSocketTelemetry().onDisconnect();
     }
 
     @Override

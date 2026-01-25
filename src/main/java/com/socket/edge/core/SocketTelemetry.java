@@ -1,5 +1,6 @@
 package com.socket.edge.core;
 
+import com.socket.edge.constant.SocketState;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
@@ -16,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.*;
@@ -31,6 +31,7 @@ public class SocketTelemetry {
 
     private static final long TPS_WINDOW_MS = 1000;
 
+    private final String hashId;
     private final String id;
     private final String name;
     private final String type;
@@ -79,11 +80,12 @@ public class SocketTelemetry {
     private final List<Meter> meters = new CopyOnWriteArrayList<>();
     private final AtomicBoolean disposed = new AtomicBoolean(false);
 
-    public SocketTelemetry(MeterRegistry registry, AbstractSocket socket) {
+    public SocketTelemetry(MeterRegistry registry, AbstractSocket socket, String hashId) {
 
         this.registry = registry;
         this.socket = socket;
 
+        this.hashId = hashId;
         this.id = socket.getId();
         this.name = socket.getName();
         this.type = socket.getType().name();
@@ -321,33 +323,42 @@ public class SocketTelemetry {
     }
 
     public RuntimeState getRuntimeState() {
-        List<SocketChannel> channels =
-                socket.channelPool().activeChannels();
-        int active = channels.size();
-        String localHost;
-        if (socket instanceof NettyServerSocket server) {
-            localHost = extractServerLocalHost(server);
-        } else {
-            localHost = extractLocalHost(channels);
-        }
-        String remoteHost = extractRemoteHosts(channels);
+        long starttime = 0;
+        String localHost = ":";
+        String remoteHost = ":";
+        int active = 0;
+        String state = SocketState.DOWN.name();
 
-        return new RuntimeState(
-                socket.getId(),
-                socket.getName(),
-                socket.getType().name(),
+        if (socket != null) {
+            starttime = socket.getStartTime();
+            List<SocketChannel> channels =
+                    socket.channelPool().activeChannels();
+            active = channels.size();
+            if (socket instanceof NettyServerSocket server) {
+                localHost = extractServerLocalHost(server);
+            } else {
+                localHost = extractLocalHost(channels);
+            }
+            remoteHost = extractRemoteHosts(channels);
+            state = socket.getState().name();
+        }
+
+        return new RuntimeState(hashId,
+                id,
+                name,
+                type,
                 localHost,
                 remoteHost,
                 active,
-                socket.getStartTime(),
+                starttime,
                 lastConnect.get(),
                 lastDisconnect.get(),
-                socket.getState().name()
+                state
         );
     }
 
     public Queue getQueue() {
-        return new Queue(
+        return new Queue(hashId,
                 id,
                 name,
                 type,
@@ -367,7 +378,7 @@ public class SocketTelemetry {
         HistogramSnapshot pressureSnap = pressureSummary.takeSnapshot();
         HistogramSnapshot throughputSnap = throughputSummary.takeSnapshot();
 
-        return new Metrics(
+        return new Metrics(hashId,
                 id,
                 name,
                 type,

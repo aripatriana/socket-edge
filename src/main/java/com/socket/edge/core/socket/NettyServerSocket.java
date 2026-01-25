@@ -32,19 +32,25 @@ public class NettyServerSocket extends AbstractSocket {
     private volatile boolean running = false;
     private IsoParser parser;
     private ForwardService forward;
-    private SocketChannelPool channelPool;
+    private SocketChannelPooling channelPool;
     private SocketType type = SocketType.SERVER;
     private SocketTelemetry socketTelemetry;
     private TelemetryRegistry telemetryRegistry;
 
-    public NettyServerSocket(String name, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
-        super(String.format("%s-server-%d",name, port), name);
+    public NettyServerSocket(String name, String host, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
+        super(String.format("%s-server-%d",name, port), name, host, port, telemetryRegistry);
+
         this.port = port;
         this.parser = parser;
         this.forward = forward;
-        this.channelPool = new SocketChannelPool(getId(), type, allowlist);
+
+
+        allowlist.forEach(se -> {
+            addEndpoint(se);
+        });
+
         this.telemetryRegistry = telemetryRegistry;
-        this.socketTelemetry = telemetryRegistry.register(this);
+        this.channelPool = new SocketChannelPooling(this);
 
         boss = new NioEventLoopGroup(
                 1,
@@ -80,7 +86,7 @@ public class NettyServerSocket extends AbstractSocket {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                             ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
                             ch.pipeline().addLast(new ByteDecoder());
-                            ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this, socketTelemetry, parser, forward));
+                            ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this, parser, forward));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
                         }
@@ -129,7 +135,7 @@ public class NettyServerSocket extends AbstractSocket {
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
-        telemetryRegistry.unregister(this);
+        super.shutdown();
         if (boss != null) {
             boss.shutdownGracefully();
         }
@@ -137,12 +143,11 @@ public class NettyServerSocket extends AbstractSocket {
         if (worker != null) {
             worker.shutdownGracefully();
         }
-
         log.info("Shutdown socker server id={} done", getId());
     }
 
     @Override
-    public SocketChannelPool channelPool() {
+    public SocketChannelPooling channelPool() {
         return channelPool;
     }
 

@@ -1,6 +1,7 @@
 package com.socket.edge.model;
 
-public record Metrics(String id,
+public record Metrics(String hashId,
+                      String id,
                       String name,
                       String type,
                       long avgLatency,

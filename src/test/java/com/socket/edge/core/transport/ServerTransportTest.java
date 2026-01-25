@@ -3,7 +3,7 @@ package com.socket.edge.core.transport;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
-import com.socket.edge.core.socket.SocketChannelPool;
+import com.socket.edge.core.socket.SocketChannelPooling;
 import com.socket.edge.core.strategy.SelectionStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 class ServerTransportTest {
 
     private NettyServerSocket serverSocket;
-    private SocketChannelPool channelPool;
+    private SocketChannelPooling channelPool;
     private SelectionStrategy<SocketChannel> strategy;
     private SocketChannel channel;
     private MessageContext ctx;
@@ -25,7 +25,7 @@ class ServerTransportTest {
     @BeforeEach
     void setUp() {
         serverSocket = mock(NettyServerSocket.class);
-        channelPool = mock(SocketChannelPool.class);
+        channelPool = mock(SocketChannelPooling.class);
         strategy = mock(SelectionStrategy.class);
         channel = mock(SocketChannel.class);
         ctx = mock(MessageContext.class);
