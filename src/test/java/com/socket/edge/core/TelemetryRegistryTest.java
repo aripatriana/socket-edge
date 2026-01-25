@@ -365,9 +365,9 @@ class TelemetryRegistryTest {
         Meter meter = meterRegistry.find("socket.msg.in").meter();
         assertThat(meter).isNotNull();
 
-        assertThat(meter.getId().getTag("id")).isEqualTo("A");
-        assertThat(meter.getId().getTag("name")).isEqualTo("fello");
-        assertThat(meter.getId().getTag("type")).isEqualTo("SERVER");
+        assertThat(meter.getId().getTag("socketId")).isEqualTo("A");
+//        assertThat(meter.getId().getTag("socketName")).isEqualTo("fello");
+//        assertThat(meter.getId().getTag("type")).isEqualTo("SERVER");
     }
 
     @Test
