@@ -3,6 +3,7 @@ package com.socket.edge.core;
 import com.socket.edge.constant.Direction;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.model.SocketEndpoint;
+import com.socket.edge.utils.CommonUtil;
 import com.socket.edge.utils.DslParser;
 
 import java.io.IOException;
@@ -92,6 +93,13 @@ public class ChannelCfgProcessor {
                 /* server.pool IP must be unique */
                 Set<String> poolIps = new HashSet<>();
                 channel.server().pool().forEach(endpoint -> {
+
+                    if (!CommonUtil.validHostIpv4(endpoint.host())) {
+                        throw new IllegalStateException(
+                                "Invalid IP address in channel "
+                                        + channel.name() + ": " + endpoint.host());
+                    }
+
                     if (!poolIps.add(endpoint.host())) {
                         throw new IllegalStateException(
                                 "Duplicate server pool IP in channel "

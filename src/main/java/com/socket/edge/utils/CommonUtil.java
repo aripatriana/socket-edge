@@ -6,9 +6,15 @@ import com.socket.edge.model.helper.FieldDiff;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
 public class CommonUtil {
+
+    private static final Pattern IPV4 =
+            Pattern.compile(
+                    "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}"
+                            + "(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$");
 
     public static <T extends Enum<T>> void diff(
             Map<T, FieldDiff> map,
@@ -42,4 +48,9 @@ public class CommonUtil {
 
         return (int) (crc.getValue() % 100_000_000);
     }
+
+    public static boolean validHostIpv4(String host) {
+        return !IPV4.matcher(host).matches();
+    }
+
 }
