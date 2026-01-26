@@ -12,15 +12,10 @@ public record Metadata (
                 List<ChannelCfg> channelCfgs,
                 Map<String, Iso8583Profile> profiles)
 {
-    public void replaceWith(Metadata metadata) {
-        channelCfgs.clear();
-        profiles.clear();
-        metadata.channelCfgs().forEach(k -> {
-            channelCfgs.add(k);
-        });
-        metadata.profiles().forEach((k, v) -> {
-            profiles.put(k, v);
-        });
+
+    public Metadata {
+        channelCfgs = List.copyOf(channelCfgs);
+        profiles = Map.copyOf(profiles);
     }
 
     public MetadataDiff diffWith(Metadata newMd) {

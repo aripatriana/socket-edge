@@ -54,7 +54,7 @@ public class SystemBootstrap {
     private IsoParser parser;
     private ChannelCfgProcessor channelCfgProcessor;
     private CamelContext camelContext;
-    private Metadata metadata;
+    private MetadataHolder metadataHolder;
     private NettyHttpServer httpServer;
     public static Config sc;
     private final ConfigUtil cu = new ConfigUtil();
@@ -137,7 +137,8 @@ public class SystemBootstrap {
             throw new IllegalStateException("Failed to load ISO packager", e);
         }
         parser = new IsoParser(packager);
-        metadata = channelCfgProcessor.process(Path.of(System.getProperty("base.dir"),"conf", "channel.conf"));
+        Metadata metadata = channelCfgProcessor.process(Path.of(System.getProperty("base.dir"),"conf", "channel.conf"));
+        metadataHolder = new MetadataHolder(metadata);
     }
 
     public void handleRouterEngine() throws Exception {
@@ -147,7 +148,7 @@ public class SystemBootstrap {
                 .setThreadPoolFactory(new VirtualThreadPoolFactory());
 
         SEEngine = new SEEngine(
-                metadata,
+                metadataHolder,
                 profileProcessor,
                 channelCfgSelector,
                 correlationStore,
@@ -171,7 +172,7 @@ public class SystemBootstrap {
          */
         SEEngine.bindSocketManager(socketManager);
 
-        for (ChannelCfg cfg : metadata.channelCfgs()) {
+        for (ChannelCfg cfg : metadataHolder.get().channelCfgs()) {
             socketManager.createSocket(cfg);
         }
         socketManager.startAll();
@@ -191,7 +192,7 @@ public class SystemBootstrap {
     }
 
     private List<HttpServiceHandler> getHttpServiceHandlers() {
-        ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadata, channelCfgProcessor);
+        ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadataHolder, channelCfgProcessor);
         AdminHttpService adminHttpService = new AdminHttpService(socketManager);
         List<HttpServiceHandler> services = List.of(
                 new SocketStatusHandler(telemetryRegistry),

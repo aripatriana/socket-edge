@@ -2,6 +2,7 @@ package com.socket.edge.core.engine;
 
 import com.socket.edge.constant.Direction;
 import com.socket.edge.core.ChannelCfgSelector;
+import com.socket.edge.core.MetadataHolder;
 import com.socket.edge.core.iso.Iso8583ProfileResolver;
 import com.socket.edge.core.LoadAware;
 import com.socket.edge.core.cache.CorrelationStore;
@@ -26,17 +27,17 @@ public class SEEngine extends RouteBuilder {
     private static final Logger log = LoggerFactory.getLogger(SEEngine.class);
 
     private SocketManager socketManager;
-    private Metadata metadata;
+    private MetadataHolder metadataHolder;
     private Iso8583ProfileResolver profileProcessor;
     private ChannelCfgSelector channelCfgSelector;
     private CorrelationStore correlationStore;
     private TransportProvider transportProvider;
     private ConfigUtil cu = new ConfigUtil();
 
-    public SEEngine(Metadata metadata, Iso8583ProfileResolver profileProcessor,
+    public SEEngine(MetadataHolder metadataHolder, Iso8583ProfileResolver profileProcessor,
                     ChannelCfgSelector channelCfgSelector, CorrelationStore correlationStore,
                     TransportProvider transportProvider) {
-        this.metadata = metadata;
+        this.metadataHolder = metadataHolder;
         this.profileProcessor = profileProcessor;
         this.channelCfgSelector = channelCfgSelector;
         this.correlationStore = correlationStore;
@@ -88,7 +89,7 @@ public class SEEngine extends RouteBuilder {
                             ctx.getInboundType(),
                             ctx.getLocalAddress(),
                             ctx.getRemoteAddress(),
-                            metadata.channelCfgs()
+                            metadataHolder.get().channelCfgs()
                     );
 
                     ctx.setChannelCfg(cfg);
@@ -99,7 +100,7 @@ public class SEEngine extends RouteBuilder {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
 
                     Iso8583Profile profile =
-                            metadata.profiles().get(ctx.getChannelCfg().profile());
+                            metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
 
                     if (ctx.field(cu.getString("message.packager.key")) == null) {
                         throw new IllegalArgumentException("Missing MTI (de1)");
@@ -124,7 +125,7 @@ public class SEEngine extends RouteBuilder {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     Iso8583Profile profile =
-                            metadata.profiles().get(ctx.getChannelCfg().profile());
+                            metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
 
                     String key =
                             profileProcessor.buildCorrelationKey(ctx, profile);

@@ -1,6 +1,7 @@
 package com.socket.edge.http.service;
 
 import com.socket.edge.core.ChannelCfgProcessor;
+import com.socket.edge.core.MetadataHolder;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketManager;
 import com.socket.edge.model.ChannelCfg;
@@ -24,13 +25,13 @@ public class ReloadCfgService {
     private static final Logger log = LoggerFactory.getLogger(ReloadCfgService.class);
 
     private final SocketManager socketManager;
-    private final Metadata metadata;
+    private final MetadataHolder metadataHolder;
     private final ChannelCfgProcessor channelCfgProcessor;
     private static final String CHANNEL_CONF = "channel.conf";
 
-    public ReloadCfgService(SocketManager socketManager, Metadata metadata, ChannelCfgProcessor channelCfgProcessor) {
+    public ReloadCfgService(SocketManager socketManager, MetadataHolder metadataHolder, ChannelCfgProcessor channelCfgProcessor) {
         this.socketManager = socketManager;
-        this.metadata = metadata;
+        this.metadataHolder = metadataHolder;
         this.channelCfgProcessor = channelCfgProcessor;
     }
 
@@ -45,7 +46,7 @@ public class ReloadCfgService {
         try {
             Metadata newMetadata = channelCfgProcessor.process(channelConfigPath());
             Objects.requireNonNull(newMetadata, "Invalid channel.conf");
-            return metadata.diffWith(newMetadata);
+            return metadataHolder.get().diffWith(newMetadata);
         } catch (Exception e) {
             log.error("Failed to validate channel config", e);
             throw new RuntimeException("Failed to validate channel configuration", e);
@@ -66,14 +67,14 @@ public class ReloadCfgService {
     public synchronized void reloadConfig(Metadata newMetadata) {
         log.info("Reloading channel configuration...");
 
-        MetadataDiff diff = metadata.diffWith(newMetadata);
+        MetadataDiff diff = metadataHolder.get().diffWith(newMetadata);
 
         try {
             handleDeletedChannels(diff);
             handleAddedChannels(diff);
             handleModifiedChannels(diff);
 
-            metadata.replaceWith(newMetadata);
+            metadataHolder.replaceWith(newMetadata);
             log.info("Channel configuration reload completed successfully");
 
         } catch (Exception e) {
