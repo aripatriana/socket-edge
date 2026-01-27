@@ -16,6 +16,20 @@ public class CommonUtil {
                     "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}"
                             + "(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$");
 
+    private static final Pattern IPV6 =
+            Pattern.compile(
+                    "^(" +
+                            "([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +          // full
+                            "([0-9a-fA-F]{1,4}:){1,7}:|" +                      // :: short
+                            "([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|" +
+                            "([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|" +
+                            "([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|" +
+                            "([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|" +
+                            "([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|" +
+                            "[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|" +
+                            ":((:[0-9a-fA-F]{1,4}){1,7}|:)" +
+                            ")$");
+
     public static <T extends Enum<T>> void diff(
             Map<T, FieldDiff> map,
             T field,
@@ -49,8 +63,8 @@ public class CommonUtil {
         return (int) (crc.getValue() % 100_000_000);
     }
 
-    public static boolean validHostIpv4(String host) {
-        return !IPV4.matcher(host).matches();
+    public static boolean validIPAddresss(String host) {
+        return IPV4.matcher(host).matches() || IPV6.matcher(host).matches();
     }
 
 }

@@ -94,7 +94,7 @@ public class ChannelCfgProcessor {
                 Set<String> poolIps = new HashSet<>();
                 channel.server().pool().forEach(endpoint -> {
 
-                    if (!CommonUtil.validHostIpv4(endpoint.host())) {
+                    if (!CommonUtil.validIPAddresss(endpoint.host())) {
                         throw new IllegalStateException(
                                 "Invalid IP address in channel "
                                         + channel.name() + ": " + endpoint.host());

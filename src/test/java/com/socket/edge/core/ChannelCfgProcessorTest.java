@@ -189,10 +189,10 @@ class ChannelCfgProcessorTest {
                 type tcp
                 server {
                     listen 127.0.0.1 26000
-                    pool x
+                    pool 127.0.0.1
                 }
                 client {
-                    connect y 26000
+                    connect 127.0.0.1 26000
                 }
                 profile p
             }
@@ -202,10 +202,10 @@ class ChannelCfgProcessorTest {
                 type tcp
                 server {
                     listen 127.0.0.1 26000
-                    pool z
+                    pool 127.0.0.1
                 }
                 client {
-                    connect w 26001
+                    connect 127.0.0.1 26001
                 }
                 profile p
             }
@@ -244,11 +244,11 @@ class ChannelCfgProcessorTest {
                 type tcp
                 server {
                     listen 127.0.0.1 26000
-                    pool a
+                    pool 127.0.0.1
                 }
                 client {
-                    connect x 26000
-                    connect x 26000
+                    connect 127.0.0.1 26000
+                    connect 127.0.0.1 26000
                 }
                 profile p
             }
@@ -284,10 +284,10 @@ class ChannelCfgProcessorTest {
                 type tcp
                 server {
                     listen 127.0.0.1 26000
-                    pool a
+                    pool 127.0.0.1
                 }
                 client {
-                    connect b 26000
+                    connect 127.0.0.1 26000
                     strategy invalid
                 }
                 profile p
@@ -316,7 +316,7 @@ class ChannelCfgProcessorTest {
     }
 
     @Test
-    void shouldFailWhenOutboundMissing() {
+    void shouldFailOnInvalidInvalidIPAddress() {
 
         String dsl = """
             channel {
@@ -328,6 +328,46 @@ class ChannelCfgProcessorTest {
                 }
                 client {
                     connect b 26000
+                    strategy invalid
+                }
+                profile p
+            }
+
+            profile p {
+                direction inbound {
+                    de1 = "0200"
+                }
+                direction outbound {
+                    de39 = "00"
+                }
+                correlation {
+                    de11
+                }
+            }
+            """;
+
+        Metadata md = parser.parse(dsl);
+
+        IllegalStateException ex =
+                assertThrows(IllegalStateException.class,
+                        () -> processor.validateMetadata(md));
+
+        assertTrue(ex.getMessage().contains("Invalid IP address"));
+    }
+
+    @Test
+    void shouldFailWhenOutboundMissing() {
+
+        String dsl = """
+            channel {
+                name test
+                type tcp
+                server {
+                    listen 127.0.0.1 26000
+                    pool 127.0.0.1
+                }
+                client {
+                    connect 127.0.0.1 26000
                 }
                 profile p
             }
@@ -358,10 +398,10 @@ class ChannelCfgProcessorTest {
                 type tcp
                 server {
                     listen 127.0.0.1 26000
-                    pool a
+                    pool 127.0.0.1
                 }
                 client {
-                    connect b 26000
+                    connect 127.0.0.1 26000
                     strategy roundrobin
                 }
                 profile p
