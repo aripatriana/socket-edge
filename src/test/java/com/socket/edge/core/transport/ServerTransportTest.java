@@ -1,5 +1,6 @@
 package com.socket.edge.core.transport;
 
+import com.socket.edge.constant.SocketState;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.NettyServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
@@ -32,6 +33,7 @@ class ServerTransportTest {
         channel = mock(SocketChannel.class);
         ctx = mock(MessageContext.class);
 
+        when(serverSocket.getState()).thenReturn(SocketState.ACTIVE);
         when(serverSocket.channelPool()).thenReturn(channelPool);
     }
 
@@ -119,7 +121,7 @@ class ServerTransportTest {
         ServerTransport transport =
                 new ServerTransport(serverSocket, strategy);
 
-        assertTrue(transport.isUp());
+        assertTrue(transport.isActive());
     }
 
     @Test
@@ -129,7 +131,7 @@ class ServerTransportTest {
         ServerTransport transport =
                 new ServerTransport(serverSocket, strategy);
 
-        assertFalse(transport.isUp());
+        assertFalse(transport.isActive());
     }
 
     @Test

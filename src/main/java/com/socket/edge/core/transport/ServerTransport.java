@@ -1,5 +1,6 @@
 package com.socket.edge.core.transport;
 
+import com.socket.edge.constant.SocketState;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketChannel;
@@ -41,8 +42,13 @@ public final class ServerTransport implements Transport {
     }
 
     @Override
-    public boolean isUp() {
-        return !socket.channelPool().activeChannels().isEmpty();
+    public boolean isActive() {
+        boolean stateActive = socket.getState() == SocketState.ACTIVE;
+        boolean hasActiveChannel = !socket.channelPool()
+                .activeChannels()
+                .isEmpty();
+
+        return stateActive && hasActiveChannel;
     }
 
     @Override

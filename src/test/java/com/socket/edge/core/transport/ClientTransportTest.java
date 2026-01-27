@@ -134,12 +134,12 @@ class ClientTransportTest {
 
     @Test
     void isUp_shouldReturnTrue_whenAnySocketIsUp() {
-        when(clientSocket.getState()).thenReturn(SocketState.UP);
+        when(clientSocket.getState()).thenReturn(SocketState.ACTIVE);
 
         ClientTransport transport =
                 new ClientTransport(List.of(clientSocket), strategy);
 
-        assertTrue(transport.isUp());
+        assertTrue(transport.isActive());
     }
 
     @Test
@@ -149,6 +149,6 @@ class ClientTransportTest {
         ClientTransport transport =
                 new ClientTransport(List.of(clientSocket), strategy);
 
-        assertFalse(transport.isUp());
+        assertFalse(transport.isActive());
     }
 }

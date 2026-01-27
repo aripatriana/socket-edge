@@ -64,9 +64,9 @@ public final class ClientTransport implements Transport {
     }
 
     @Override
-    public boolean isUp() {
+    public boolean isActive() {
         return sockets.stream()
-                .anyMatch(socket -> socket.getState() == SocketState.UP);
+                .anyMatch(socket -> socket.getState() == SocketState.ACTIVE);
     }
 
     @Override
