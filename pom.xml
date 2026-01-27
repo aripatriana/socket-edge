@@ -140,6 +140,11 @@
             <artifactId>micrometer-registry-jmx</artifactId>
             <version>1.12.3</version>
         </dependency>
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+            <version>5.3.6</version>
+        </dependency>
         <!-- ========================= -->
         <!-- JUnit 5 (Jupiter) -->
         <!-- ========================= -->

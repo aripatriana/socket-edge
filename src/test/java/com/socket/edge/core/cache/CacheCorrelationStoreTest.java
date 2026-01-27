@@ -1,6 +1,6 @@
 package com.socket.edge.core.cache;
 
-import com.socket.edge.model.ReplyInbound;
+import com.socket.edge.model.CorrelationEntry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,11 +26,11 @@ class CacheCorrelationStoreTest {
     @Test
     void putAndGet_shouldReturnValueBeforeTtl() {
         store = new CacheCorrelationStore(500);
-        ReplyInbound inbound = mock(ReplyInbound.class);
+        CorrelationEntry inbound = mock(CorrelationEntry.class);
 
         store.put("key1", inbound);
 
-        ReplyInbound result = store.get("key1");
+        CorrelationEntry result = store.get("key1");
         assertNotNull(result);
         assertSame(inbound, result);
     }
@@ -38,20 +38,20 @@ class CacheCorrelationStoreTest {
     @Test
     void get_shouldReturnNullAfterTtlExpired() throws Exception {
         store = new CacheCorrelationStore(100);
-        ReplyInbound inbound = mock(ReplyInbound.class);
+        CorrelationEntry inbound = mock(CorrelationEntry.class);
 
         store.put("key1", inbound);
 
         Thread.sleep(150);
 
-        ReplyInbound result = store.get("key1");
+        CorrelationEntry result = store.get("key1");
         assertNull(result);
     }
 
     @Test
     void expiredEntry_shouldBeRemovedOnGet() throws Exception {
         store = new CacheCorrelationStore(100);
-        ReplyInbound inbound = mock(ReplyInbound.class);
+        CorrelationEntry inbound = mock(CorrelationEntry.class);
 
         store.put("key1", inbound);
 
@@ -64,7 +64,7 @@ class CacheCorrelationStoreTest {
     @Test
     void remove_shouldDeleteEntryImmediately() {
         store = new CacheCorrelationStore(1_000);
-        ReplyInbound inbound = mock(ReplyInbound.class);
+        CorrelationEntry inbound = mock(CorrelationEntry.class);
 
         store.put("key1", inbound);
         store.remove("key1");
@@ -75,7 +75,7 @@ class CacheCorrelationStoreTest {
     @Test
     void cleanupTask_shouldRemoveExpiredEntries() throws Exception {
         store = new CacheCorrelationStore(100);
-        ReplyInbound inbound = mock(ReplyInbound.class);
+        CorrelationEntry inbound = mock(CorrelationEntry.class);
 
         store.put("key1", inbound);
         store.put("key2", inbound);
@@ -89,8 +89,8 @@ class CacheCorrelationStoreTest {
     @Test
     void get_shouldNotRemoveNewEntry_whenRaceConditionHappens() throws Exception {
         store = new CacheCorrelationStore(100);
-        ReplyInbound oldInbound = mock(ReplyInbound.class);
-        ReplyInbound newInbound = mock(ReplyInbound.class);
+        CorrelationEntry oldInbound = mock(CorrelationEntry.class);
+        CorrelationEntry newInbound = mock(CorrelationEntry.class);
 
         store.put("key1", oldInbound);
 
@@ -100,7 +100,7 @@ class CacheCorrelationStoreTest {
         // Simulate concurrent put before get removes
         store.put("key1", newInbound);
 
-        ReplyInbound result = store.get("key1");
+        CorrelationEntry result = store.get("key1");
 
         assertNotNull(result);
         assertSame(newInbound, result);
@@ -115,9 +115,9 @@ class CacheCorrelationStoreTest {
         for (int i = 0; i < 100; i++) {
             int idx = i;
             executor.submit(() -> {
-                ReplyInbound inbound = mock(ReplyInbound.class);
+                CorrelationEntry inbound = mock(CorrelationEntry.class);
                 store.put("key-" + idx, inbound);
-                ReplyInbound r = store.get("key-" + idx);
+                CorrelationEntry r = store.get("key-" + idx);
                 if (r != null) {
                     success.incrementAndGet();
                 }

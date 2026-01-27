@@ -1,16 +1,16 @@
 package com.socket.edge.core.cache;
 
-import com.socket.edge.model.ReplyInbound;
+import com.socket.edge.model.CorrelationEntry;
 
 import java.util.concurrent.*;
 
 public class CacheCorrelationStore implements CorrelationStore {
 
     private static class Entry {
-        final ReplyInbound channel;
+        final CorrelationEntry channel;
         final long expireAt;
 
-        Entry(ReplyInbound ch, long ttlMs) {
+        Entry(CorrelationEntry ch, long ttlMs) {
             this.channel = ch;
             this.expireAt = System.nanoTime()
                     + TimeUnit.MILLISECONDS.toNanos(ttlMs);
@@ -34,12 +34,12 @@ public class CacheCorrelationStore implements CorrelationStore {
     }
 
     @Override
-    public void put(String key, ReplyInbound inbound) {
+    public void put(String key, CorrelationEntry inbound) {
         store.put(key, new Entry(inbound, ttlMs));
     }
 
     @Override
-    public ReplyInbound get(String key) {
+    public CorrelationEntry get(String key) {
         Entry e = store.get(key);
         if (e == null) return null;
 
@@ -67,6 +67,11 @@ public class CacheCorrelationStore implements CorrelationStore {
 
     public void shutdown() {
         cleaner.shutdown();
+    }
+
+    @Override
+    public int size() {
+        return store.size();
     }
 }
 

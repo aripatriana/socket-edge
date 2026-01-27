@@ -151,7 +151,9 @@ public class SEEngine extends RouteBuilder {
 
                     correlationStore.put(
                             ctx.getCorrelationKey(),
-                            new ReplyInbound(ctx.getCorrelationKey(), ctx.getSocketId(), ctx.getSocketChannel())
+                            CorrelationEntry.newEntry(ctx.getCorrelationKey(),
+                                    ctx.getSocketId(),
+                                    ctx.getSocketChannel().channelId().asLongText())
                     );
                 })
                 .process(e -> {
@@ -160,8 +162,8 @@ public class SEEngine extends RouteBuilder {
                     Transport transport =
                             transportProvider.resolve(ctx.getChannelCfg(), ctx.getOutboundType());
 
-                    if (!transport.isUp()) {
-                        throw new IllegalStateException("Transport DOWN");
+                    if (!transport.isActive()) {
+                        throw new IllegalStateException("Transport NOT ACTIVE");
                     }
 
                     transport.send(ctx);
@@ -178,39 +180,49 @@ public class SEEngine extends RouteBuilder {
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
                     try {
-                        ReplyInbound inbound =
+                        // check correlation entry
+                        CorrelationEntry replyEntry =
                                 correlationStore.get(ctx.getCorrelationKey());
-                        if (inbound == null) {
+                        if (replyEntry == null) {
                             throw new IllegalStateException(
-                                    "No inbound channel for correlation="
+                                    "No inbound correlation entry for correlation="
                                             + ctx.getCorrelationKey()
                             );
                         }
 
-                        SocketChannel channel = inbound.socketChannel();
-                        if (channel != null) {
-                            if (!channel.isActive()) {
+                        // check reply socket
+                        AbstractSocket replySocket = socketManager.getSocket(replyEntry.replySocketId());
+                        if (replySocket == null) {
+                            throw new IllegalStateException(
+                                    "No inbound socket for correlation="
+                                            + ctx.getCorrelationKey()
+                            );
+                        }
+
+                        // check reply channel
+                        SocketChannel replyChannel = replySocket.channelPool().getChannelById(replyEntry.replyChannelId());
+                        if (replyChannel != null) {
+                            if (!replyChannel.isActive()) {
                                 throw new IllegalStateException(
                                         "No channel active for correlation="
-                                                + ctx.getCorrelationKey()
+                                                + ctx.getCorrelationKey() + " channelId=" + replyEntry.replyChannelId()
                                 );
                             }
-                            channel.send(ctx.getRawBytes());
+                            replyChannel.send(ctx.getRawBytes());
                         } else {
-                            AbstractSocket socket = socketManager.getSocket(inbound.socketId());
-                            List<SocketChannel> candidate = socket.channelPool().activeChannels();
-                            if (candidate != null && candidate.size() > 0) {
-                                channel = candidate.get(0);
-                                channel.send(ctx.getRawBytes());
+                            List<SocketChannel> replyCandidates = replySocket.channelPool().activeChannels();
+                            if (replyCandidates != null && replyCandidates.size() > 0) {
+                                replyChannel = replyCandidates.get(0);
+                                replyChannel.send(ctx.getRawBytes());
                             } else {
                                 throw new IllegalStateException(
                                         "No channel active for correlation="
-                                                + ctx.getCorrelationKey()
+                                                + ctx.getCorrelationKey() + " socketId=" + replyEntry.replySocketId()
                                 );
                             }
                         }
-                        long latencyMs = (System.nanoTime()-(long)ctx.getProperty("receivedTimeNs"));
-                        ctx.getSocketTelemetry().onComplete(latencyMs);
+                        long latencyNs = (System.nanoTime()-(long)ctx.getProperty("receivedTimeNs"));
+                        ctx.getSocketTelemetry().onComplete(latencyNs);
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());
                         LoadAware loadAware = (LoadAware) ctx.getProperty("back_forward_channel");
