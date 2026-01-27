@@ -3,7 +3,6 @@ package com.socket.edge.core.socket;
 import com.socket.edge.model.EndpointKey;
 import com.socket.edge.model.SocketEndpoint;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelId;
 
 import java.net.InetSocketAddress;
 import java.util.*;
@@ -15,7 +14,7 @@ public class SocketChannelPooling {
 
     private final AtomicLong version = new AtomicLong(1);
     private AbstractSocket abstractSocket;
-    private final ConcurrentMap<ChannelId, SocketChannel> activeChannels = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, SocketChannel> activeChannels = new ConcurrentHashMap<>();
     private final ConcurrentMap<EndpointKey, Set<SocketChannel>> endpointIndex = new ConcurrentHashMap<>();
 
     public SocketChannelPooling(AbstractSocket abstractSocket) {
@@ -45,7 +44,7 @@ public class SocketChannelPooling {
         }
 
         SocketChannel sc = new SocketChannel(abstractSocket.getId(), ch, se, abstractSocket.resolveTelemetry(se.id()));
-        SocketChannel existing = activeChannels.putIfAbsent(ch.id(), sc);
+        SocketChannel existing = activeChannels.putIfAbsent(ch.id().asLongText(), sc);
         if (existing != null) {
             return false;
         }
@@ -64,7 +63,7 @@ public class SocketChannelPooling {
         }
 
         channels.forEach(sc -> {
-            activeChannels.remove(sc.channelId());
+            activeChannels.remove(sc.channelId().asLongText());
             if (sc.isActive()) {
                 sc.close();
             }
@@ -75,7 +74,7 @@ public class SocketChannelPooling {
     }
 
     public void removeChannel(Channel ch) {
-        SocketChannel sc = activeChannels.remove(ch.id());
+        SocketChannel sc = activeChannels.remove(ch.id().asLongText());
         if (sc == null) {
             return;
         }
@@ -92,8 +91,12 @@ public class SocketChannelPooling {
         }
     }
 
-    public SocketChannel get(Channel ch) {
-        return activeChannels.get(ch.id());
+    public SocketChannel getChannel(Channel ch) {
+        return activeChannels.get(ch.id().asLongText());
+    }
+
+    public SocketChannel getChannelById(String channelId) {
+        return activeChannels.get(channelId);
     }
 
     public Set<SocketChannel> getAllByEndpoint(SocketEndpoint se) {
@@ -125,6 +128,7 @@ public class SocketChannelPooling {
         });
         activeChannels.clear();
         endpointIndex.clear();
+        updateVersion();
     }
 
     public AtomicLong getVersion() {
