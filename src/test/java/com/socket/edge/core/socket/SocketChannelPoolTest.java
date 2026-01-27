@@ -8,6 +8,7 @@ import org.junit.jupiter.api.*;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.stream.IntStream;
 
@@ -34,6 +35,7 @@ class SocketChannelPoolTest {
     private Channel mockChannel(String ip, int port, ChannelId id) {
         Channel ch = mock(Channel.class);
 
+        when(id.asLongText()).thenReturn(UUID.randomUUID().toString());
         when(ch.id()).thenReturn(id);
         when(ch.remoteAddress()).thenReturn(new InetSocketAddress(ip, port));
         when(ch.isActive()).thenReturn(true);
@@ -45,6 +47,7 @@ class SocketChannelPoolTest {
         Channel ch = mock(Channel.class);
         ChannelId id = mock(ChannelId.class);
 
+        when(id.asLongText()).thenReturn(UUID.randomUUID().toString());
         when(ch.id()).thenReturn(id);
         when(ch.remoteAddress()).thenReturn(new InetSocketAddress(ip, port));
         when(ch.isActive()).thenReturn(true);
@@ -61,7 +64,7 @@ class SocketChannelPoolTest {
         boolean result = pool.addChannel(ch);
 
         assertTrue(result);
-        assertNotNull(pool.get(ch));
+        assertNotNull(pool.getChannel(ch));
         assertEquals(1, pool.getAllChannel().size());
     }
 
@@ -102,7 +105,7 @@ class SocketChannelPoolTest {
     @Test
     void get_returnsNull_whenChannelNotRegistered() {
         Channel ch = mockChannel("127.0.0.1", 9000);
-        assertNull(pool.get(ch));
+        assertNull(pool.getChannel(ch));
     }
 
     @Test
