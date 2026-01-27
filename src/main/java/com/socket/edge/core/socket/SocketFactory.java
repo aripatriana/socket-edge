@@ -1,6 +1,6 @@
 package com.socket.edge.core.socket;
 
-import com.socket.edge.core.ForwardService;
+import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.SocketEndpoint;
@@ -10,16 +10,16 @@ public class SocketFactory {
 
     private final TelemetryRegistry telemetryRegistry;
     private final IsoParser isoParser;
-    private final ForwardService forwardService;
+    private final MessageContextProcess messageContextProcess;
 
     public SocketFactory(
             TelemetryRegistry telemetryRegistry,
             IsoParser isoParser,
-            ForwardService forwardService
+            MessageContextProcess messageContextProcess
     ) {
         this.telemetryRegistry = telemetryRegistry;
         this.isoParser = isoParser;
-        this.forwardService = forwardService;
+        this.messageContextProcess = messageContextProcess;
     }
 
     public AbstractSocket createServer(ChannelCfg cfg) {
@@ -30,7 +30,7 @@ public class SocketFactory {
                 cfg.server().pool(),
                 telemetryRegistry,
                 isoParser,
-                forwardService
+                messageContextProcess
         );
     }
 
@@ -40,7 +40,7 @@ public class SocketFactory {
                 endpoint,
                 telemetryRegistry,
                 isoParser,
-                forwardService
+                messageContextProcess
         );
     }
 }

@@ -2,15 +2,15 @@ package com.socket.edge.core;
 
 import org.apache.camel.ProducerTemplate;
 
-public class ForwardService {
+public class MessageContextProcess {
 
     ProducerTemplate producerTemplate;
 
-    public ForwardService(ProducerTemplate producerTemplate) {
+    public MessageContextProcess(ProducerTemplate producerTemplate) {
         this.producerTemplate = producerTemplate;
     }
 
-    public void forward(MessageContext messageContext) {
+    public void process(MessageContext messageContext) {
         producerTemplate.sendBody("seda:receive", messageContext);
     }
 }
