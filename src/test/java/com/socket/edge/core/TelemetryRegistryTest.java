@@ -228,7 +228,7 @@ class TelemetryRegistryTest {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
         SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
 
-        when(socket.getState()).thenReturn(SocketState.UP);
+        when(socket.getState()).thenReturn(SocketState.ACTIVE);
 
         SocketTelemetry telemetry = spy(telemetryRegistry.register(socket, se));
         SocketChannelPooling pool = mock(SocketChannelPooling.class);
@@ -248,9 +248,9 @@ class TelemetryRegistryTest {
         AbstractSocket s3 = socket("B", "fello", SocketType.SERVER);
         SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
 
-        when(s1.getState()).thenReturn(SocketState.UP);
-        when(s2.getState()).thenReturn(SocketState.UP);
-        when(s3.getState()).thenReturn(SocketState.UP);
+        when(s1.getState()).thenReturn(SocketState.ACTIVE);
+        when(s2.getState()).thenReturn(SocketState.ACTIVE);
+        when(s3.getState()).thenReturn(SocketState.ACTIVE);
 
         SocketChannelPooling pool = mock(SocketChannelPooling.class);
         when(s1.channelPool()).thenReturn(pool);

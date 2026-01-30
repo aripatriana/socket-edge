@@ -1,8 +1,16 @@
 package com.socket.edge;
 
+import com.hazelcast.config.MapConfig;
+import com.hazelcast.config.TcpIpConfig;
+import com.hazelcast.core.Hazelcast;
+import com.hazelcast.core.HazelcastInstance;
+import com.socket.edge.constant.RolePreference;
 import com.socket.edge.core.*;
 import com.socket.edge.core.cache.CacheCorrelationStore;
 import com.socket.edge.core.cache.CorrelationStore;
+import com.socket.edge.core.cluster.ClusterListener;
+import com.socket.edge.core.cluster.ClusterManager;
+import com.socket.edge.core.cluster.SocketClusterAdapter;
 import com.socket.edge.core.engine.SEEngine;
 import com.socket.edge.core.iso.Iso8583ProfileResolver;
 import com.socket.edge.core.socket.SocketFactory;
@@ -15,6 +23,7 @@ import com.socket.edge.http.service.AdminHttpService;
 import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Metadata;
+import com.socket.edge.model.RolePolicy;
 import com.socket.edge.utils.ConfigUtil;
 import com.socket.edge.utils.IsoParser;
 import com.typesafe.config.Config;
@@ -26,6 +35,7 @@ import io.micrometer.jmx.JmxConfig;
 import io.micrometer.jmx.JmxMeterRegistry;
 import org.apache.camel.CamelContext;
 import org.apache.camel.impl.DefaultCamelContext;
+import org.jgroups.JChannel;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOPackager;
 import org.jpos.iso.packager.GenericPackager;
@@ -37,6 +47,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class SystemBootstrap {
 
@@ -60,6 +71,7 @@ public class SystemBootstrap {
     private final ConfigUtil cu = new ConfigUtil();
     private TelemetryRegistry telemetryRegistry;
     private SEEngine SEEngine;
+    private static boolean cluster = false;
 
     static {
         // For testing purpose
@@ -69,7 +81,9 @@ public class SystemBootstrap {
     }
 
     public SystemBootstrap(String[] args) {
-
+        cluster = Boolean.parseBoolean(
+                System.getProperty("cluster", "false")
+        );
     }
 
     public void loadSystemConfiguration() {
@@ -78,23 +92,48 @@ public class SystemBootstrap {
         if (baseDir == null || baseDir.isBlank()) {
             throw new IllegalStateException("System property 'base.dir' is not set. Please provide -Dbase.dir=<path>");
         }
-        Path configPath = Path.of(
-                System.getProperty("base.dir"),
-                "conf",
-                "system.conf"
-        );
 
-        if (!Files.exists(configPath)) {
+        Path confDir = Path.of(baseDir, "conf");
+        Path systemConf = confDir.resolve("system.conf");
+        Path clusterConf = confDir.resolve("cluster.conf");
+
+        if (!Files.exists(systemConf)) {
             throw new IllegalStateException(
-                    "Config file not found: " + configPath.toAbsolutePath()
+                    "System.conf file not found: " + systemConf.toAbsolutePath()
             );
         }
 
-        sc = ConfigFactory.parseFile(configPath.toFile()).resolve();
+        Config systemConfig = ConfigFactory.parseFile(systemConf.toFile());
+
+        if (cluster) {
+            if (!Files.exists(clusterConf)) {
+                throw new IllegalStateException(
+                        "cluster.enabled=true but cluster.conf not found: "
+                                + clusterConf.toAbsolutePath()
+                );
+            }
+
+            Config clusterConfig = ConfigFactory.parseFile(clusterConf.toFile());
+
+            sc = clusterConfig
+                    .withFallback(systemConfig)
+                    .resolve();
+
+            Path jgroupPath = Path.of(System.getProperty("base.dir"), sc.getString("cluster.jgroup-path"));
+            if (!Files.exists(jgroupPath)) {
+                throw new IllegalStateException(
+                        "cluster.enabled=true but jgroups.xml not found: "
+                                + jgroupPath.toAbsolutePath()
+                );
+            }
+
+        } else {
+            sc = systemConfig;
+        }
     }
 
     public void initializeObject() {
-        log.info("System initializing..");
+        log.info("System initialization..");
         profileProcessor = new Iso8583ProfileResolver();
         transportProvider = new TransportProvider();
         transportRegister = new TransportRegister(transportProvider);
@@ -159,8 +198,8 @@ public class SystemBootstrap {
         camelContext.start();
     }
 
-    public void handleSocketConfiguration() throws InterruptedException {
-        log.info("Socket initializing..");
+    public void handleSocketConfiguration() throws Exception {
+        log.info("Setup socket configuration..");
         messageContextProcess = new MessageContextProcess(camelContext.createProducerTemplate());
         socketFactory = new SocketFactory(telemetryRegistry, parser, messageContextProcess);
         socketManager = new SocketManager(socketFactory, transportRegister);
@@ -175,11 +214,80 @@ public class SystemBootstrap {
         for (ChannelCfg cfg : metadataHolder.get().channelCfgs()) {
             socketManager.createSocket(cfg);
         }
-        socketManager.startAll();
+
+        if (cluster) {
+            handleCluster();
+        } else {
+            socketManager.startAll();
+        }
+    }
+
+    public void handleCluster() throws Exception {
+        log.info("Cluster mode enabled, initializing cluster manager..");
+
+        // initialize jgroup parameter
+        System.setProperty("jgroups.bind_addr",
+                sc.getString("cluster.jgroup.bind-addr"));
+
+        System.setProperty("jgroups.members",
+                sc.getStringList("cluster.members")
+                    .stream()
+                    .map(ip -> ip + "[" + sc.getInt("cluster.jgroup.port") + "]")
+                    .collect(Collectors.joining(",")));
+
+        Path jGroupPath = Path.of(System.getProperty("base.dir"), sc.getString("cluster.jgroup-path"));
+
+        // intialize hazelcast
+        com.hazelcast.config.Config hzConfig = new com.hazelcast.config.Config();
+        hzConfig.setClusterName(cu.getString("cluster.cluster-name", "socket-edge-cluster"));
+
+        hzConfig.getNetworkConfig()
+                .getJoin()
+                .getMulticastConfig().setEnabled(false);
+
+        TcpIpConfig tcp = hzConfig.getNetworkConfig()
+                .getJoin()
+                .getTcpIpConfig()
+                .setEnabled(true);
+
+       cu.getStringList("cluster.members").forEach(m -> {
+            tcp.addMember(m);
+        });
+
+        hzConfig.addMapConfig(
+                new MapConfig("socket-edge-state")
+                        .setBackupCount(1)
+                        .setAsyncBackupCount(0)
+        );
+
+        // initialize channel and hazelcast cluster
+        HazelcastInstance hazelcast = Hazelcast.newHazelcastInstance(hzConfig);
+        JChannel channel = new JChannel(jGroupPath.toAbsolutePath().toString());
+
+        ClusterListener listener = new SocketClusterAdapter(socketManager);
+
+        RolePreference prefer =
+                RolePreference.valueOf(
+                        cu.getString("cluster.role.prefer", "slave").toUpperCase()
+                );
+
+        boolean strict = cu.getBoolean("cluster.role.strict", false);
+
+        RolePolicy rolePolicy =
+                new RolePolicy(prefer, strict);
+
+        ClusterManager clusterManager =
+                new ClusterManager(
+                        channel,
+                        rolePolicy,
+                        listener
+                );
+
+        clusterManager.start();
     }
 
 
-    public void handleHttpServer() throws InterruptedException {
+    public void handleHttpServer() throws Exception {
         log.info("Start httpserver..");
 
         List<HttpServiceHandler> services = getHttpServiceHandlers();
@@ -249,7 +357,7 @@ public class SystemBootstrap {
 
     public static void main(String[] args) throws Exception {
         try {
-            log.info("Starting..");
+            log.info("Starting application..");
             long start = System.currentTimeMillis();
             SystemBootstrap bootstrap = new SystemBootstrap(args);
             bootstrap.loadSystemConfiguration();
@@ -266,4 +374,7 @@ public class SystemBootstrap {
         }
     }
 
+    public static boolean isCluster() {
+        return cluster;
+    }
 }

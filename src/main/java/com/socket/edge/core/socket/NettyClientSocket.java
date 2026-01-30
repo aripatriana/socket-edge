@@ -1,6 +1,7 @@
 package com.socket.edge.core.socket;
 
-import com.socket.edge.core.ForwardService;
+import com.socket.edge.constant.NodeRole;
+import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.constant.SocketState;
@@ -27,6 +28,8 @@ public class NettyClientSocket extends AbstractSocket {
 
     private static final Logger log = LoggerFactory.getLogger(NettyClientSocket.class);
 
+    private volatile SocketState socketState = SocketState.DOWN;
+
     private final String host;
     private final int port;
     private Channel channel;
@@ -38,13 +41,13 @@ public class NettyClientSocket extends AbstractSocket {
     private int retryCount = 0;
     private static final int MAX_BACKOFF_SECONDS = 30;
     private IsoParser parser;
-    private ForwardService forward;
+    private MessageContextProcess forward;
     private SocketChannelPooling channelPool;
     private SocketType type = SocketType.CLIENT;
     private TelemetryRegistry telemetryRegistry;
 
-    public NettyClientSocket(String name, SocketEndpoint se, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
-        super(String.format("%s-client-%s-%d",name, se.host(),se.port()), name, se.host(), se.port(), telemetryRegistry);
+    public NettyClientSocket(boolean cluster, String name, SocketEndpoint se, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
+        super(cluster, String.format("%s-client-%s-%d",name, se.host(),se.port()), name, se.host(), se.port(), telemetryRegistry);
 
         this.host = se.host();
         this.port = se.port();
@@ -59,13 +62,13 @@ public class NettyClientSocket extends AbstractSocket {
         this.group = new NioEventLoopGroup(
                 1,
                 new DefaultThreadFactory(
-                        String.format("%s-client-eventloop", name)
+                        String.format("%s-client-el", name)
                 )
         );
         scheduler = Executors.newSingleThreadScheduledExecutor(r ->
                 new Thread(
                         r,
-                        String.format("%s-client-reconnect", name)
+                        String.format("%s-client", name)
                 )
         );
     }
@@ -77,30 +80,78 @@ public class NettyClientSocket extends AbstractSocket {
             return;
         }
 
-        try {
-            log.info("Start socket client id={}", getId());
-            bootstrap = new Bootstrap()
-                    .group(group)
-                    .channel(NioSocketChannel.class)
-                    .option(ChannelOption.SO_KEEPALIVE, true)
-                    .handler(new ChannelInitializer<>() {
-                        @Override
-                        protected void initChannel(Channel ch) {
-                            ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
-                            ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
-                            ch.pipeline().addLast(new ByteDecoder());
-                            ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, parser, forward));
-                            ch.pipeline().addLast(new ByteEncoder());
-                            ch.pipeline().addLast(new LengthFieldPrepender(2));
-                        }
-                    });
+        if (isCluster()) {
+            log.debug("Start client socket app id={} as {}", getId(), getRole());
+        } else {
+            log.debug("Start client socket app id={}", getId());
+        }
 
-            running = true;
-            connect();
-            startTime = System.currentTimeMillis();
+        bootstrap = new Bootstrap()
+                .group(group)
+                .channel(NioSocketChannel.class)
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .handler(new ChannelInitializer<>() {
+                    @Override
+                    protected void initChannel(Channel ch) {
+                        ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
+                        ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
+                        ch.pipeline().addLast(new ByteDecoder());
+                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, parser, forward));
+                        ch.pipeline().addLast(new ByteEncoder());
+                        ch.pipeline().addLast(new LengthFieldPrepender(2));
+                    }
+                });
+
+        running = true;
+        startTime = System.currentTimeMillis();
+
+        if (!isCluster() || getRole() == NodeRole.MASTER) {
+            activate();
+        } else {
+            socketState = SocketState.STANDBY;
+            log.info("{} started in standby mode", getId());
+        }
+    }
+
+    public synchronized void activate() {
+        if (!running) {
+            log.warn("{} not running, cannot activate", getId());
+            return;
+        }
+
+        if (socketState == SocketState.ACTIVE) {
+            return;
+        }
+
+        socketState = SocketState.ACTIVE;
+
+        retryCount = 0;
+        reconnecting.set(false);
+
+        connect();
+    }
+
+    public synchronized void standby() {
+        if (socketState == SocketState.STANDBY) {
+            return;
+        }
+
+        try {
+            socketState = SocketState.STANDBY;
+
+            reconnecting.set(false);
+            retryCount = 0;
+
+            channelPool.closeAll();
+            if (channel != null) {
+                channel.close();
+                channel = null;
+            }
+
+            log.info("{} standby", getId());
         } catch (Exception e) {
-            log.error("Failed to bind client socket {}", getId(), e);
-            throw e;
+            socketState = SocketState.ERROR;
+            log.error("Failed to demote socket {}", getId(), e);
         }
     }
 
@@ -116,25 +167,25 @@ public class NettyClientSocket extends AbstractSocket {
             return;
         }
 
-        log.info("Stop socket server id={}", getId());
-
         running = false;
         startTime = 0;
         reconnecting.set(false);
         retryCount = 0;
 
         channelPool.closeAll();
-
         if (channel != null) {
             channel.close();
             channel = null;
         }
+
+        log.info("{} stopped", getId());
     }
 
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
         super.shutdown();
+
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
@@ -142,13 +193,13 @@ public class NettyClientSocket extends AbstractSocket {
             group.shutdownGracefully();
         }
 
-        log.info("Shutdown client server id={} done", getId());
+        log.info("{} shutdown", getId());
     }
 
     private synchronized void connect() {
-        if (!running || group.isShutdown() || group.isTerminated()) {
-            return;
-        }
+        if (!running) return;
+        if (isCluster() && getRole() != NodeRole.MASTER) return;
+        if (group.isShutdown() || group.isTerminated()) return;
 
         bootstrap.connect(host, port)
                 .addListener((ChannelFutureListener) future -> {
@@ -173,7 +224,7 @@ public class NettyClientSocket extends AbstractSocket {
 
     @Override
     public SocketState getState() {
-        return channel != null && channel.isActive() ? SocketState.UP : SocketState.DOWN;
+        return socketState;
     }
 
     @Override
@@ -196,6 +247,9 @@ public class NettyClientSocket extends AbstractSocket {
     }
 
     private synchronized void scheduleReconnect() {
+        if (!running) return;
+        if (isCluster() && getRole() != NodeRole.MASTER) return;
+
         if (!reconnecting.compareAndSet(false, true)) {
             return;
         }

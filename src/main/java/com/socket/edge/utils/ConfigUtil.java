@@ -1,6 +1,6 @@
 package com.socket.edge.utils;
 
-import com.socket.edge.SystemBootstrap;
+import java.util.List;
 
 import static com.socket.edge.SystemBootstrap.sc;
 
@@ -28,5 +28,9 @@ public class ConfigUtil {
 
     public int getInt(String key, int def) {
         return sc.hasPath(key) ? sc.getInt(key) : def;
+    }
+
+    public List<String> getStringList(String key) {
+        return sc.getStringList(key);
     }
 }

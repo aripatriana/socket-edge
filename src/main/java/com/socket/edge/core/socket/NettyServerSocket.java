@@ -1,8 +1,9 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.constant.NodeRole;
 import com.socket.edge.constant.SocketState;
 import com.socket.edge.constant.SocketType;
-import com.socket.edge.core.ForwardService;
+import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
@@ -25,20 +26,22 @@ public class NettyServerSocket extends AbstractSocket {
 
     private static final Logger log = LoggerFactory.getLogger(NettyServerSocket.class);
 
+    private volatile SocketState socketState = SocketState.DOWN;
+
     private final int port;
     private EventLoopGroup boss;
     private EventLoopGroup worker;
     private Channel serverChannel;
     private volatile boolean running = false;
     private IsoParser parser;
-    private ForwardService forward;
+    private MessageContextProcess forward;
     private SocketChannelPooling channelPool;
     private SocketType type = SocketType.SERVER;
     private SocketTelemetry socketTelemetry;
     private TelemetryRegistry telemetryRegistry;
 
-    public NettyServerSocket(String name, String host, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, ForwardService forward) {
-        super(String.format("%s-server-%d",name, port), name, host, port, telemetryRegistry);
+    public NettyServerSocket(boolean cluster, String name, String host, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
+        super(cluster, String.format("%s-server-%d",name, port), name, host, port, telemetryRegistry);
 
         this.port = port;
         this.parser = parser;
@@ -55,12 +58,12 @@ public class NettyServerSocket extends AbstractSocket {
         boss = new NioEventLoopGroup(
                 1,
                 new DefaultThreadFactory(
-                        String.format("%s-server-eventloop-boss", getName())
+                        String.format("%s-server-el-b", getName())
                 )
         );
         worker = new NioEventLoopGroup(
                 new DefaultThreadFactory(
-                        String.format("%s-server-eventloop-worker", getName())
+                        String.format("%s-server-el-w", getName())
                 )
         );
     }
@@ -72,8 +75,36 @@ public class NettyServerSocket extends AbstractSocket {
             return;
         }
 
+        if (isCluster()) {
+            log.debug("Start socket app id={} as {}", getId(), getRole());
+        } else {
+            log.debug("Start socket app id={}", getId());
+        }
+
+        running = true;
+        startTime = System.currentTimeMillis();
+
+        if (!isCluster() || getRole() == NodeRole.MASTER) {
+            activate();
+        } else {
+            socketState = SocketState.STANDBY;
+            log.info("{} started in standby mode", getId());
+        }
+    }
+
+    @Override
+    public synchronized void activate() throws InterruptedException {
+        if (!running) {
+            log.warn("{} not running, cannot activate", getId());
+            return;
+        }
+
+        if (socketState == SocketState.ACTIVE) {
+            log.warn("{} already active", getId());
+            return;
+        }
+
         try {
-            log.info("Start socket server id={}", getId());
             ChannelFuture future = new ServerBootstrap()
                     .group(boss, worker)
                     .channel(NioServerSocketChannel.class)
@@ -95,14 +126,36 @@ public class NettyServerSocket extends AbstractSocket {
                     .sync();
 
             serverChannel = future.channel();
-            running = true;
-            startTime = System.currentTimeMillis();
+            socketState = SocketState.ACTIVE;
             log.info("{} listening on {}", getId(), this.port);
         } catch (Exception e) {
+            socketState = SocketState.ERROR;
             log.error("Failed to bind server socket {}", getId(), e);
             throw e;
         }
     }
+
+    public synchronized void standby() {
+        if (socketState == SocketState.STANDBY) {
+            return;
+        }
+
+        try {
+            socketState = SocketState.STANDBY;
+
+            channelPool.closeAll();
+            if (serverChannel != null) {
+                serverChannel.close();
+                serverChannel = null;
+            }
+
+            log.info("{} standby", getId());
+        } catch (Exception e) {
+            socketState = SocketState.ERROR;
+            log.error("Failed to demote socket {}", getId(), e);
+        }
+    }
+
 
     @Override
     public SocketType getType() {
@@ -119,17 +172,19 @@ public class NettyServerSocket extends AbstractSocket {
             log.warn("{} already stopped", getId());
             return;
         }
-        log.info("Stop socket server id={}", getId());
 
         running = false;
         startTime = 0;
 
-        channelPool.closeAll();
+        socketState = SocketState.DOWN;
 
+        channelPool.closeAll();
         if (serverChannel != null) {
             serverChannel.close();
             serverChannel = null;
         }
+
+        log.info("{} stopped", getId());
     }
 
     @Override
@@ -143,7 +198,7 @@ public class NettyServerSocket extends AbstractSocket {
         if (worker != null) {
             worker.shutdownGracefully();
         }
-        log.info("Shutdown socker server id={} done", getId());
+        log.info("{} shutdown", getId());
     }
 
     @Override
@@ -153,6 +208,7 @@ public class NettyServerSocket extends AbstractSocket {
 
     @Override
     public SocketState getState() {
-        return serverChannel != null && serverChannel.isActive() ? SocketState.UP : SocketState.DOWN;
+        return socketState;
     }
+
 }

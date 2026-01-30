@@ -7,10 +7,7 @@ import com.socket.edge.utils.CommonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SocketManager {
@@ -48,7 +45,7 @@ public class SocketManager {
         AbstractSocket existing = sockets.putIfAbsent(server.getId(), server);
         if (existing == null) {
             transportRegister.registerServerTransport(cfg, server);
-            log.info("Server socket registered id={}", server.getId());
+            log.debug("Server socket registered id={}", server.getId());
         } else {
             log.warn("Server socket already exists id={}", server.getId());
         }
@@ -69,7 +66,7 @@ public class SocketManager {
 
             if (existing == null) {
                 registered.add(client);
-                log.info("Client socket registered id={}", client.getId());
+                log.debug("Client socket registered id={}", client.getId());
             } else {
                 log.warn("Client socket already exists id={}", client.getId());
             }
@@ -91,12 +88,16 @@ public class SocketManager {
         AbstractSocket existing = sockets.putIfAbsent(client.getId(), client);
         if (existing == null) {
             transportRegister.registerClientTransport(cfg, client);
-            log.info("Client socket registered id={}", client.getId());
+            log.debug("Client socket registered id={}", client.getId());
         } else {
             log.warn("Client socket already exists id={}", client.getId());
         }
 
         return client;
+    }
+
+    public Collection<AbstractSocket> getSockets() {
+        return sockets.values();
     }
 
     public AbstractSocket getSocket(String id) {
@@ -113,8 +114,28 @@ public class SocketManager {
         }
     }
 
+    public void activate(AbstractSocket socket) {
+        Objects.requireNonNull(socket, "Object socket null");
+        try {
+            socket.activate();
+        } catch (InterruptedException e) {
+            log.error("Activate failed id={}", socket.getId(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void standby(AbstractSocket socket) {
+        Objects.requireNonNull(socket, "Object socket null");
+        try {
+            socket.standby();
+        } catch (InterruptedException e) {
+            log.error("Stanby failed id={}", socket.getId(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
     public void startById(String id) throws InterruptedException {
-        log.info("Start socket by id {}", id);
+        log.debug("Start socket by id {}", id);
         start(requireSocket(id));
     }
 
@@ -129,7 +150,7 @@ public class SocketManager {
     }
 
     public void stopById(String id) throws InterruptedException {
-        log.info("Stop socket by id {}", id);
+        log.debug("Stop socket by id {}", id);
         stop(requireSocket(id));
     }
 
@@ -198,7 +219,7 @@ public class SocketManager {
             String id = CommonUtil.clientId(cfg.name(), se.host(), se.port());
             AbstractSocket socket = removeAndShutdown(id);
             if (socket != null) {
-                log.info("Destroyed client socket id={}", id);
+                log.debug("Destroyed client socket id={}", id);
                 transportRegister.unregisterClientTransport(cfg, socket);
             }
         }

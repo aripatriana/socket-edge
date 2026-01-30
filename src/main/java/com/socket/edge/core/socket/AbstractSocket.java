@@ -1,17 +1,22 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.constant.NodeRole;
 import com.socket.edge.constant.SocketState;
 import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.EndpointKey;
 import com.socket.edge.model.SocketEndpoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class AbstractSocket {
+
+    private static final Logger log = LoggerFactory.getLogger(AbstractSocket.class);
 
     private final Map<EndpointKey, SocketTelemetry> telemetryMap = new ConcurrentHashMap<>();
     private final Map<EndpointKey, SocketEndpoint> endpointMap = new ConcurrentHashMap<>();
@@ -23,7 +28,12 @@ public abstract class AbstractSocket {
     int port;
     long startTime;
 
-    public AbstractSocket(String id, String name, String host, int port, TelemetryRegistry telemetryRegistry) {
+    // cluster variable
+    private boolean cluster;
+    private volatile NodeRole role = NodeRole.SLAVE;
+
+    public AbstractSocket(boolean cluster, String id, String name, String host, int port, TelemetryRegistry telemetryRegistry) {
+        this.cluster = cluster;
         this.id = id;
         this.name = name;
         this.host = host;
@@ -43,6 +53,10 @@ public abstract class AbstractSocket {
         return startTime;
     }
 
+    public NodeRole getRole() {
+        return role;
+    }
+
     public abstract SocketType getType();
 
     /*
@@ -55,7 +69,15 @@ public abstract class AbstractSocket {
      */
     public abstract void stop() throws InterruptedException;
 
+    public abstract void activate() throws InterruptedException;
+
+    public abstract void standby() throws InterruptedException;
+
     public abstract SocketState getState();
+
+    public boolean isCluster() {
+        return cluster;
+    }
 
     public abstract SocketChannelPooling channelPool();
 
@@ -117,6 +139,10 @@ public abstract class AbstractSocket {
                 .filter(sc -> sc.getSocketEndpoint().id().equals(key))
                 .forEach(sc -> sc.setSocketEndpoint(newEp));
         channelPool().updateVersion();
+    }
+
+    public void changeRole(NodeRole role) {
+        this.role = role;
     }
 
 }

@@ -1,5 +1,6 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.SystemBootstrap;
 import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.ChannelCfg;
@@ -24,6 +25,7 @@ public class SocketFactory {
 
     public AbstractSocket createServer(ChannelCfg cfg) {
         return new NettyServerSocket(
+                SystemBootstrap.isCluster(),
                 cfg.name(),
                 cfg.server().listenHost(),
                 cfg.server().listenPort(),
@@ -36,6 +38,7 @@ public class SocketFactory {
 
     public AbstractSocket createClient(ChannelCfg cfg, SocketEndpoint endpoint) {
         return new NettyClientSocket(
+                SystemBootstrap.isCluster(),
                 cfg.name(),
                 endpoint,
                 telemetryRegistry,
