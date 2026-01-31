@@ -5,6 +5,7 @@ import com.hazelcast.config.TcpIpConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.socket.edge.constant.RolePreference;
+import com.socket.edge.constant.ServerMode;
 import com.socket.edge.core.*;
 import com.socket.edge.core.cache.CacheCorrelationStore;
 import com.socket.edge.core.cache.CorrelationStore;
@@ -72,6 +73,7 @@ public class SystemBootstrap {
     private TelemetryRegistry telemetryRegistry;
     private SEEngine SEEngine;
     private static boolean cluster = false;
+    private ServerMode serverMode;
 
     static {
         // For testing purpose
@@ -81,9 +83,26 @@ public class SystemBootstrap {
     }
 
     public SystemBootstrap(String[] args) {
-        cluster = Boolean.parseBoolean(
-                System.getProperty("cluster", "false")
-        );
+        String mode = System.getProperty("server.mode");
+
+        if (mode == null || mode.isBlank()) {
+            throw new IllegalStateException(
+                    "System property 'server.mode' is required. " +
+                            "Use: -Dserver.mode=standalone | cluster"
+            );
+        }
+
+        try {
+            serverMode = ServerMode.valueOf(mode.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(
+                    "Invalid server.mode value: '" + mode + "'. " +
+                            "Allowed values: STANDALONE, CLUSTER",
+                    e
+            );
+        }
+
+        cluster = serverMode == ServerMode.CLUSTER;
     }
 
     public void loadSystemConfiguration() {
@@ -97,39 +116,55 @@ public class SystemBootstrap {
         Path systemConf = confDir.resolve("system.conf");
         Path clusterConf = confDir.resolve("cluster.conf");
 
+        Path systemSchema = confDir.resolve("schema/schema-system.conf");
+        Path clusterSchema = confDir.resolve("schema/schema-cluster.conf");
+
         if (!Files.exists(systemConf)) {
-            throw new IllegalStateException(
-                    "System.conf file not found: " + systemConf.toAbsolutePath()
-            );
+            throw new IllegalStateException("system.conf not found: " + systemConf);
         }
 
-        Config systemConfig = ConfigFactory.parseFile(systemConf.toFile());
+        if (!Files.exists(systemSchema)) {
+            throw new IllegalStateException("schema-system.conf not found: " + systemSchema);
+        }
+
+        Config systemConfig = ConfigFactory.parseFile(systemConf.toFile()).resolve();
+        Config systemSchemaConfig = ConfigFactory.parseFile(systemSchema.toFile());
+
+        systemConfig.checkValid(systemSchemaConfig);
+
+        Config finalConfig = systemConfig;
 
         if (cluster) {
             if (!Files.exists(clusterConf)) {
                 throw new IllegalStateException(
-                        "cluster.enabled=true but cluster.conf not found: "
-                                + clusterConf.toAbsolutePath()
+                        "cluster.enabled=true but cluster.conf not found: " + clusterConf
+                );
+            }
+            if (!Files.exists(clusterSchema)) {
+                throw new IllegalStateException(
+                        "schema-cluster.conf not found: " + clusterSchema
                 );
             }
 
-            Config clusterConfig = ConfigFactory.parseFile(clusterConf.toFile());
+            Config clusterConfig = ConfigFactory.parseFile(clusterConf.toFile()).resolve();
+            Config clusterSchemaConfig = ConfigFactory.parseFile(clusterSchema.toFile());
 
-            sc = clusterConfig
+            clusterConfig.checkValid(clusterSchemaConfig);
+
+            finalConfig = clusterConfig
                     .withFallback(systemConfig)
                     .resolve();
 
-            Path jgroupPath = Path.of(System.getProperty("base.dir"), sc.getString("cluster.jgroup-path"));
+            Path jgroupPath = Path.of(baseDir, finalConfig.getString("cluster.jgroup-path"));
             if (!Files.exists(jgroupPath)) {
                 throw new IllegalStateException(
                         "cluster.enabled=true but jgroups.xml not found: "
                                 + jgroupPath.toAbsolutePath()
                 );
             }
-
-        } else {
-            sc = systemConfig;
         }
+
+        this.sc = finalConfig;
     }
 
     public void initializeObject() {
