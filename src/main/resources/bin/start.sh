@@ -11,18 +11,23 @@ PID_FILE="$BIN_DIR/app.pid"
 # =========================
 # Parse arguments
 # =========================
-CLUSTER_MODE=false
+SERVER_MODE=""
 
-for arg in "$@"; do
-  case "$arg" in
-    --cluster)
-      CLUSTER_MODE=true
-      shift
-      ;;
-    *)
-      ;;
-  esac
-done
+case "$1" in
+  --standalone)
+    SERVER_MODE="standalone"
+    ;;
+  --cluster)
+    SERVER_MODE="cluster"
+    ;;
+  *)
+    echo "ERROR: server mode is required"
+    echo "Usage:"
+    echo "  ./start.sh --standalone"
+    echo "  ./start.sh --cluster"
+    exit 1
+    ;;
+esac
 
 # =========================
 # load env & JVM opts
@@ -39,15 +44,15 @@ JAVA_OPTS=(
   -Dlogback.configurationFile="$CONF_DIR/logback.xml"
   -DLOG_HOME="$LOG_DIR"
   -Dbase.dir="$BASE_DIR"
-  -Dcluster="$CLUSTER_MODE"
+  -Dserver.mode="$SERVER_MODE"
 )
 
 CLASSPATH="$LIB_DIR/*"
 
 echo "JAVA_HOME=$JAVA_HOME"
 echo "CLASSPATH=$CLASSPATH"
+echo "SERVER_MODE=$SERVER_MODE"
 echo "SOCKET_EDGE_OPTS=$SOCKET_EDGE_OPTS"
-echo "CLUSTER_MODE=$CLUSTER_MODE"
 
 # =========================
 # Check running process
@@ -60,7 +65,7 @@ fi
 # =========================
 # Start application
 # =========================
-echo "Starting socket-edge..."
+echo "Starting jalin-iso-loadbalancer (mode=$SERVER_MODE)..."
 
 java $SOCKET_EDGE_OPTS \
   "${JAVA_OPTS[@]}" \
@@ -71,4 +76,4 @@ java $SOCKET_EDGE_OPTS \
 APP_PID=$!
 echo "$APP_PID" > "$PID_FILE"
 
-echo "Started with PID $APP_PID (cluster=$CLUSTER_MODE)"
+echo "Started with PID $APP_PID"

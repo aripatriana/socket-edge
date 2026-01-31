@@ -16,7 +16,7 @@ if ! kill -0 "$PID" 2>/dev/null; then
   exit 0
 fi
 
-echo "Stopping socket-edge (PID=$PID)..."
+echo "Stopping jalin-iso-loadbalancer (PID=$PID)..."
 
 # Graceful shutdown
 kill "$PID"
