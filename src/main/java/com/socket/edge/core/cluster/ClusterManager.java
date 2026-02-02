@@ -14,13 +14,11 @@ public class ClusterManager {
 
     private static final Logger log = LoggerFactory.getLogger(ClusterManager.class);
 
-    private static final String MASTER_LOCK = "socket-edge-master-lock";
-
     private ConfigUtil cu = new ConfigUtil();
     private final JChannel channel;
     private final ClusterListener listener;
-
     private final RolePolicy rolePolicy;
+
     private final AtomicReference<ClusterState> state = new AtomicReference<>(ClusterState.STARTING);
 
     public ClusterManager(
@@ -35,20 +33,19 @@ public class ClusterManager {
 
     public void start() {
         try {
+            if (!rolePolicy.allowMasterElection()) {
+                transitionToSlave("configured as SLAVE");
+            }
+
             channel.setReceiver(new Receiver() {
                 @Override
                 public void viewAccepted(View new_view) {
                     log.info("JGroups view changed: {}", new_view);
+
                     electInitialRole(new_view);
                 }
             });
             channel.connect(cu.getString("cluster.cluster-name","socket-edge-cluster"));
-
-            if (rolePolicy.allowMasterElection()) {
-                electInitialRole(channel.view());
-            } else {
-                transitionToSlave("configured as SLAVE");
-            }
         } catch (Exception e) {
             throw new IllegalStateException("Failed to start cluster manager", e);
         }
