@@ -17,6 +17,14 @@ public class SocketClusterAdapter implements ClusterListener {
     }
 
     @Override
+    public void onRoleChanged(NodeRole nodeRole) {
+        if (nodeRole == NodeRole.MASTER) {
+            changeToMaster();
+        } else {
+            changeToSlave();
+        }
+    }
+
     public void changeToMaster() {
         socketManager.getSockets().forEach(socket -> {
             socket.changeRole(NodeRole.MASTER);
@@ -34,7 +42,6 @@ public class SocketClusterAdapter implements ClusterListener {
         });
     }
 
-    @Override
     public void changeToSlave() {
         socketManager.getSockets().forEach(socket -> {
             socket.changeRole(NodeRole.SLAVE);

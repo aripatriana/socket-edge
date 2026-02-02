@@ -1,6 +1,7 @@
 package com.socket.edge.core.cluster;
 
 import com.socket.edge.constant.ClusterState;
+import com.socket.edge.constant.NodeRole;
 import com.socket.edge.model.RolePolicy;
 import com.socket.edge.utils.ConfigUtil;
 import org.jgroups.*;
@@ -100,7 +101,7 @@ public class ClusterManager {
         if (!state.compareAndSet(ClusterState.PROMOTING, ClusterState.MASTER)) {
             return;
         }
-        listener.changeToMaster();
+        listener.onRoleChanged(NodeRole.MASTER);
         log.info("State => MASTER ({})", reason);
     }
 
@@ -110,7 +111,7 @@ public class ClusterManager {
         }
 
         state.set(ClusterState.SLAVE);
-        listener.changeToSlave();
+        listener.onRoleChanged(NodeRole.SLAVE);
         log.info("State => SLAVE ({})", reason);
     }
 
