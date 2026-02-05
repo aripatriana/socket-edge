@@ -345,7 +345,8 @@ public class SystemBootstrap {
                 new QueueServiceHandle(telemetryRegistry),
                 new SocketStartHandler(adminHttpService),
                 new SocketStopHandler(adminHttpService),
-                new SocketRestartHandler(adminHttpService)
+                new SocketRestartHandler(adminHttpService),
+                new HealthCheckHandler(adminHttpService)
         );
         return services;
     }

@@ -1,5 +1,7 @@
 package com.socket.edge.http.service;
 
+import com.socket.edge.constant.NodeRole;
+import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,5 +59,12 @@ public class AdminHttpService {
     public void restartAll() throws InterruptedException {
         log.info("Restart all socket");
         socketManager.restartAll();
+    }
+
+    public NodeRole getNodeRole() {
+        return socketManager.getSockets().stream()
+                .findFirst()
+                .map(AbstractSocket::getRole)
+                .orElse(NodeRole.SLAVE);
     }
 }
