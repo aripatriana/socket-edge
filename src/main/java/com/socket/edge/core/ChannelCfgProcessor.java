@@ -12,8 +12,42 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Processes and validates channel configuration metadata.
+ *
+ * <p>{@code ChannelCfgProcessor} is responsible for:
+ * <ul>
+ *   <li>Reading channel configuration from a DSL file</li>
+ *   <li>Parsing the DSL into {@link Metadata}</li>
+ *   <li>Performing strict structural and semantic validation</li>
+ * </ul>
+ *
+ * <p>The validation logic ensures that:
+ * <ul>
+ *   <li>Channel definitions are consistent and unambiguous</li>
+ *   <li>Server and client endpoints do not conflict</li>
+ *   <li>Profiles are well-defined and usable at runtime</li>
+ * </ul>
+ *
+ * <p>This processor is typically executed during application startup
+ * or configuration reload to fail fast on invalid configuration.</p>
+ *
+ * <p>This class is stateless and thread-safe.</p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
+ */
 public class ChannelCfgProcessor {
 
+    /**
+     * Reads a DSL configuration file, parses it into {@link Metadata},
+     * and performs validation.
+     *
+     * @param path path to the DSL configuration file
+     * @return validated metadata
+     * @throws IOException              if the file cannot be read
+     * @throws IllegalStateException    if validation fails
+     */
     public Metadata process(Path path) throws IOException {
         String text = Files.readString(path);
         Metadata metadata = new DslParser().parse(text);
@@ -21,6 +55,23 @@ public class ChannelCfgProcessor {
         return metadata;
     }
 
+    /**
+     * Validates parsed metadata.
+     *
+     * <p>Validation is performed in multiple stages:
+     * <ol>
+     *   <li>Basic structural checks</li>
+     *   <li>Channel-level validation</li>
+     *   <li>Server and client endpoint validation</li>
+     *   <li>Profile validation</li>
+     * </ol>
+     *
+     * <p>Any violation will result in an {@link IllegalStateException}
+     * to prevent the system from starting with an invalid configuration.</p>
+     *
+     * @param metadata parsed metadata
+     * @throws IllegalStateException if validation fails
+     */
     public void validateMetadata(Metadata metadata) {
 
         /* =========================
@@ -54,7 +105,8 @@ public class ChannelCfgProcessor {
             /* 2. TYPE MUST BE TCP */
             if (!"tcp".equalsIgnoreCase(channel.type())) {
                 throw new IllegalStateException(
-                        "Channel " + channel.name() + " has invalid type: " + channel.type());
+                        "Channel " + channel.name()
+                                + " has invalid type: " + channel.type());
             }
 
             /* 3. PROFILE MUST EXIST */
@@ -66,13 +118,15 @@ public class ChannelCfgProcessor {
             if (!metadata.profiles().containsKey(channel.profile())) {
                 throw new IllegalStateException(
                         "Channel " + channel.name()
-                                + " references unknown profile: " + channel.profile());
+                                + " references unknown profile: "
+                                + channel.profile());
             }
 
             /* 4. MUST HAVE SERVER OR CLIENT */
             if (channel.server() == null && channel.client() == null) {
                 throw new IllegalStateException(
-                        "Channel " + channel.name() + " has neither server nor client defined");
+                        "Channel " + channel.name()
+                                + " has neither server nor client defined");
             }
 
             /* =========================
@@ -87,7 +141,8 @@ public class ChannelCfgProcessor {
                 if (!globalServerListen.add(listenKey)) {
                     throw new IllegalStateException(
                             "Duplicate server listen endpoint detected: "
-                                    + listenKey + " (channel " + channel.name() + ")");
+                                    + listenKey
+                                    + " (channel " + channel.name() + ")");
                 }
 
                 /* server.pool IP must be unique */
@@ -97,13 +152,15 @@ public class ChannelCfgProcessor {
                     if (!CommonUtil.validIPAddresss(endpoint.host())) {
                         throw new IllegalStateException(
                                 "Invalid IP address in channel "
-                                        + channel.name() + ": " + endpoint.host());
+                                        + channel.name()
+                                        + ": " + endpoint.host());
                     }
 
                     if (!poolIps.add(endpoint.host())) {
                         throw new IllegalStateException(
                                 "Duplicate server pool IP in channel "
-                                        + channel.name() + ": " + endpoint.host());
+                                        + channel.name()
+                                        + ": " + endpoint.host());
                     }
                 });
             }
@@ -122,21 +179,24 @@ public class ChannelCfgProcessor {
                     if (!clientEndpoints.add(key)) {
                         throw new IllegalStateException(
                                 "Duplicate client endpoint in channel "
-                                        + channel.name() + ": " + key);
+                                        + channel.name()
+                                        + ": " + key);
                     }
 
                     /* weight must be positive */
                     if (endpoint.weight() <= 0) {
                         throw new IllegalStateException(
                                 "Invalid client weight in channel "
-                                        + channel.name() + " for endpoint " + key);
+                                        + channel.name()
+                                        + " for endpoint " + key);
                     }
 
                     /* priority must be >= 0 */
                     if (endpoint.priority() < 0) {
                         throw new IllegalStateException(
                                 "Invalid client priority in channel "
-                                        + channel.name() + " for endpoint " + key);
+                                        + channel.name()
+                                        + " for endpoint " + key);
                     }
                 }
 
@@ -147,7 +207,8 @@ public class ChannelCfgProcessor {
                                 .contains(strategy.toLowerCase())) {
                     throw new IllegalStateException(
                             "Unknown client strategy in channel "
-                                    + channel.name() + ": " + strategy);
+                                    + channel.name()
+                                    + ": " + strategy);
                 }
             }
         });
@@ -185,5 +246,4 @@ public class ChannelCfgProcessor {
             }
         });
     }
-
 }

@@ -9,12 +9,52 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Selects the appropriate {@link ChannelCfg} based on socket context.
+ *
+ * <p>{@code ChannelCfgSelector} resolves a channel configuration
+ * by matching runtime socket attributes against configured
+ * channel definitions.</p>
+ *
+ * <p>Selection is performed using:
+ * <ul>
+ *   <li>Channel name</li>
+ *   <li>Socket type (SERVER or CLIENT)</li>
+ *   <li>Local port</li>
+ *   <li>Remote host and port</li>
+ * </ul>
+ *
+ * <p>The selection logic is deterministic:
+ * <ul>
+ *   <li>Only the first matching channel is returned</li>
+ *   <li>Ambiguous or missing matches result in failure</li>
+ * </ul>
+ *
+ * <p>This class is stateless and thread-safe.</p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
+ */
 public final class ChannelCfgSelector {
 
-    public ChannelCfg select(String channelName, SocketType socketType,
-                             InetSocketAddress local,
-                             InetSocketAddress remote,
-                             List<ChannelCfg> channelCfgs
+    /**
+     * Selects a matching {@link ChannelCfg}.
+     *
+     * @param channelName logical channel name
+     * @param socketType  socket type (SERVER or CLIENT)
+     * @param local       local socket address
+     * @param remote      remote socket address
+     * @param channelCfgs available channel configurations
+     * @return matched channel configuration
+     * @throws NullPointerException  if required parameters are {@code null}
+     * @throws IllegalStateException if no channel matches the given criteria
+     */
+    public ChannelCfg select(
+            String channelName,
+            SocketType socketType,
+            InetSocketAddress local,
+            InetSocketAddress remote,
+            List<ChannelCfg> channelCfgs
     ) {
         Objects.requireNonNull(channelCfgs, "channelCfgs");
         Objects.requireNonNull(local, "local");
@@ -31,10 +71,16 @@ public final class ChannelCfgSelector {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "No channel matched for localPort="
-                                + localPort + ", remoteHost=" + remoteHost + ", remotePort=" + remotePort
+                                + localPort
+                                + ", remoteHost=" + remoteHost
+                                + ", remotePort=" + remotePort
                 ));
     }
 
+    /**
+     * Determines whether a channel configuration matches
+     * the given socket attributes.
+     */
     private boolean matches(
             ChannelCfg ch,
             SocketType socketType,
@@ -48,14 +94,41 @@ public final class ChannelCfgSelector {
         };
     }
 
-    private boolean matchesServer(ServerChannel server, int localPort, String remoteHost) {
+    /**
+     * Matches a server channel configuration.
+     *
+     * <p>A server channel matches when:
+     * <ul>
+     *   <li>The server listens on the given local port</li>
+     *   <li>The remote host exists in the server pool</li>
+     * </ul>
+     */
+    private boolean matchesServer(
+            ServerChannel server,
+            int localPort,
+            String remoteHost
+    ) {
         return server != null
                 && server.listenPort() == localPort
                 && server.pool().stream()
-                .anyMatch(p -> p.host().equalsIgnoreCase(remoteHost));
+                .anyMatch(p ->
+                        p.host().equalsIgnoreCase(remoteHost)
+                );
     }
 
-    private boolean matchesClient(ClientChannel client, String remoteHost, int remotePort) {
+    /**
+     * Matches a client channel configuration.
+     *
+     * <p>A client channel matches when:
+     * <ul>
+     *   <li>The remote host and port match a configured endpoint</li>
+     * </ul>
+     */
+    private boolean matchesClient(
+            ClientChannel client,
+            String remoteHost,
+            int remotePort
+    ) {
         return client != null
                 && client.endpoints().stream()
                 .anyMatch(e ->
@@ -64,3 +137,4 @@ public final class ChannelCfgSelector {
                 );
     }
 }
+
