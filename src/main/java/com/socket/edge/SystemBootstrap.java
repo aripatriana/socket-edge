@@ -50,38 +50,169 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
+
+/**
+ * Application bootstrap and composition root.
+ *
+ * <p>{@code SystemBootstrap} is responsible for initializing and wiring
+ * all core components of the Socket Edge system, including:
+ * <ul>
+ *   <li>System and cluster configuration loading</li>
+ *   <li>Channel and ISO 8583 metadata processing</li>
+ *   <li>Routing engine (Apache Camel)</li>
+ *   <li>Socket layer (Netty-based)</li>
+ *   <li>Transport providers</li>
+ *   <li>Cluster management (optional)</li>
+ *   <li>HTTP admin and monitoring services</li>
+ * </ul>
+ *
+ * <p>The bootstrap supports two operating modes:
+ * <ul>
+ *   <li>{@link ServerMode#STANDALONE} – single-node execution</li>
+ *   <li>{@link ServerMode#CLUSTER} – active–passive clustered execution</li>
+ * </ul>
+ *
+ * <p>Startup flow (high-level):
+ * <ol>
+ *   <li>Load system and cluster configuration</li>
+ *   <li>Initialize core objects and registries</li>
+ *   <li>Load channel and ISO metadata</li>
+ *   <li>Start routing engine</li>
+ *   <li>Initialize sockets (and cluster manager if enabled)</li>
+ *   <li>Start HTTP server</li>
+ *   <li>Register shutdown hooks</li>
+ * </ol>
+ *
+ * <p>This class should be instantiated once and acts as the main
+ * lifecycle owner of the application.</p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
+ */
 public class SystemBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(SystemBootstrap.class);
 
+    /**
+     * ISO 8583 profile resolver.
+     */
     private Iso8583ProfileResolver profileProcessor;
+
+    /**
+     * Channel configuration selector.
+     */
     private ChannelCfgSelector channelCfgSelector;
+
+    /**
+     * Transport provider resolver.
+     */
     private TransportProvider transportProvider;
+
+    /**
+     * Transport register for lifecycle management.
+     */
     private TransportRegister transportRegister;
+
+    /**
+     * Correlation store for request–response matching.
+     */
     private CorrelationStore correlationStore;
+
+    /**
+     * Socket manager controlling socket lifecycle.
+     */
     private SocketManager socketManager;
+
+    /**
+     * Socket factory for creating socket instances.
+     */
     private SocketFactory socketFactory;
+
+    /**
+     * Message dispatcher into Camel routes.
+     */
     private MessageContextProcess messageContextProcess;
+
+    /**
+     * ISO packager used for parsing ISO 8583 messages.
+     */
     private ISOPackager packager;
+
+    /**
+     * ISO message parser.
+     */
     private IsoParser parser;
+
+    /**
+     * Channel configuration processor.
+     */
     private ChannelCfgProcessor channelCfgProcessor;
+
+    /**
+     * Apache Camel context.
+     */
     private CamelContext camelContext;
+
+    /**
+     * Runtime metadata holder.
+     */
     private MetadataHolder metadataHolder;
+
+    /**
+     * Embedded HTTP server for admin and monitoring endpoints.
+     */
     private NettyHttpServer httpServer;
+
+    /**
+     * Global system configuration.
+     */
     public static Config sc;
+
+    /**
+     * Configuration utility.
+     */
     private final ConfigUtil cu = new ConfigUtil();
+
+    /**
+     * Telemetry registry for metrics and monitoring.
+     */
     private TelemetryRegistry telemetryRegistry;
+
+    /**
+     * Core routing engine.
+     */
     private SEEngine SEEngine;
+
+    /**
+     * Indicates whether cluster mode is enabled.
+     */
     private static boolean cluster = false;
+
+    /**
+     * Server operating mode.
+     */
     private ServerMode serverMode;
 
     static {
-        // For testing purpose
+        /*
+         * Default base directory for local testing.
+         */
         if (System.getProperty("base.dir") == null) {
-            System.setProperty("base.dir", "C:\\Users\\ari.patriana\\DATA\\Project\\Github\\socket-edge\\src\\main\\resources");
+            System.setProperty(
+                    "base.dir",
+                    "C:\\Users\\ari.patriana\\DATA\\Project\\Github\\socket-edge\\src\\main\\resources"
+            );
         }
     }
 
+    /**
+     * Creates a new SystemBootstrap instance.
+     *
+     * <p>The server mode is determined by the system property
+     * {@code server.mode}.</p>
+     *
+     * @param args application arguments
+     */
     public SystemBootstrap(String[] args) {
         String mode = System.getProperty("server.mode");
 
@@ -105,6 +236,13 @@ public class SystemBootstrap {
         cluster = serverMode == ServerMode.CLUSTER;
     }
 
+    /**
+     * Loads and validates system and cluster configuration files.
+     *
+     * <p>This method performs schema validation and merges
+     * system and cluster configuration when cluster mode
+     * is enabled.</p>
+     */
     public void loadSystemConfiguration() {
         log.info("Load system configuration..");
         String baseDir = System.getProperty("base.dir");
@@ -167,6 +305,9 @@ public class SystemBootstrap {
         this.sc = finalConfig;
     }
 
+    /**
+     * Initializes core runtime objects and registries.
+     */
     public void initializeObject() {
         log.info("System initialization..");
         profileProcessor = new Iso8583ProfileResolver();
@@ -201,6 +342,9 @@ public class SystemBootstrap {
         telemetryRegistry = new TelemetryRegistry(meterRegistry);
     }
 
+    /**
+     * Loads channel configuration, ISO packager, and metadata.
+     */
     public void loadChannelConfiguration() throws IOException {
         log.info("Load channel configuration..");
 
@@ -215,6 +359,9 @@ public class SystemBootstrap {
         metadataHolder = new MetadataHolder(metadata);
     }
 
+    /**
+     * Initializes and starts the routing engine.
+     */
     public void handleRouterEngine() throws Exception {
         log.info("Setup router engine..");
         camelContext = new DefaultCamelContext();
@@ -233,6 +380,9 @@ public class SystemBootstrap {
         camelContext.start();
     }
 
+    /**
+     * Initializes socket layer and cluster manager if enabled.
+     */
     public void handleSocketConfiguration() throws Exception {
         log.info("Setup socket configuration..");
         messageContextProcess = new MessageContextProcess(camelContext.createProducerTemplate());
@@ -257,6 +407,9 @@ public class SystemBootstrap {
         }
     }
 
+    /**
+     * Initializes cluster components (JGroups + Hazelcast).
+     */
     public void handleCluster() throws Exception {
         log.info("Cluster mode enabled, initializing cluster manager..");
 
@@ -321,7 +474,9 @@ public class SystemBootstrap {
         clusterManager.start();
     }
 
-
+    /**
+     * Starts the embedded HTTP server.
+     */
     public void handleHttpServer() throws Exception {
         log.info("Start httpserver..");
 
@@ -333,6 +488,7 @@ public class SystemBootstrap {
 
         httpServer.start();
     }
+
 
     private List<HttpServiceHandler> getHttpServiceHandlers() {
         ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadataHolder, channelCfgProcessor);
@@ -351,6 +507,9 @@ public class SystemBootstrap {
         return services;
     }
 
+    /**
+     * Registers JVM shutdown hook for graceful shutdown.
+     */
     public void handleLifecycle() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown signal received...");
@@ -391,6 +550,9 @@ public class SystemBootstrap {
         }));
     }
 
+    /**
+     * Application entry point.
+     */
     public static void main(String[] args) throws Exception {
         try {
             log.info("Starting application..");
@@ -410,6 +572,11 @@ public class SystemBootstrap {
         }
     }
 
+    /**
+     * Indicates whether the application is running in cluster mode.
+     *
+     * @return {@code true} if cluster mode is enabled
+     */
     public static boolean isCluster() {
         return cluster;
     }
