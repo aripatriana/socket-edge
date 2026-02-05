@@ -49,7 +49,7 @@ public class DefaultServerSocket extends AbstractSocket {
 
 
         allowlist.forEach(se -> {
-            addEndpoint(se);
+            registerEndpoint(se);
         });
 
         this.telemetryRegistry = telemetryRegistry;

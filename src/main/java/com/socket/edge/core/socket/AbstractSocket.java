@@ -108,7 +108,7 @@ public abstract class AbstractSocket {
         }
     }
 
-    public void addEndpoint(SocketEndpoint se) {
+    public void registerEndpoint(SocketEndpoint se) {
         endpointMap.put(se.id(), se);
         telemetryMap.put(se.id(), telemetryRegistry.register(this, se));
     }

@@ -54,7 +54,7 @@ public class DefaultClientSocket extends AbstractSocket {
         this.parser = parser;
         this.forward = forward;
 
-        addEndpoint(se);
+        registerEndpoint(se);
 
         this.telemetryRegistry = telemetryRegistry;
         this.channelPool = new SocketChannelPooling(this);
