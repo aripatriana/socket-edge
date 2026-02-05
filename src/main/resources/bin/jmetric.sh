@@ -25,26 +25,11 @@ usage() {
 # ---------- parse args ----------
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --all)
-      ALL=true
-      shift
-      ;;
-    -i)
-      ID="$2"
-      shift 2
-      ;;
-    -n)
-      NAME="$2"
-      shift 2
-      ;;
-    -r)
-      REFRESH="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1"
-      usage
-      ;;
+    --all) ALL=true; shift ;;
+    -i) ID="$2"; shift 2 ;;
+    -n) NAME="$2"; shift 2 ;;
+    -r) REFRESH="$2"; shift 2 ;;
+    *) echo "Unknown option: $1"; usage ;;
   esac
 done
 
@@ -59,7 +44,7 @@ if $ALL && ([[ -n "$ID" ]] || [[ -n "$NAME" ]]); then
   exit 1
 fi
 
-# Detect jq
+# ---------- jq ----------
 if [ -x "$BASE_DIR/lib/jq-linux64" ]; then
   JQ="$BASE_DIR/lib/jq-linux64"
 elif command -v jq >/dev/null 2>&1; then
@@ -69,22 +54,21 @@ else
   exit 1
 fi
 
-# Colors
+# ---------- colors ----------
 G="\e[32m"; R="\e[31m"; NC="\e[0m"
 
 # ================= TABLE =================
 print_top() {
-  printf "${G}┌─────────────────────────────────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┐${NC}\n"
+  printf "${G}┌──────────────────────────────────┬──────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┬────────┐${NC}\n"
 }
 
 print_sep() {
-  printf "${G}├─────────────────────────────────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┤${NC}\n"
+  printf "${G}├──────────────────────────────────┼──────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┼────────┤${NC}\n"
 }
 
 print_bottom() {
-  printf "${G}└─────────────────────────────────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┘${NC}\n"
+  printf "${G}└──────────────────────────────────┴──────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┴────────┘${NC}\n"
 }
-
 
 # ================= RENDER =================
 render() {
@@ -92,12 +76,11 @@ render() {
   clear
 
   print_top
-  printf "${G}│${NC} %-35s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC}\n" \
-    "ID" \
+  printf "${G}│${NC} %-32s ${G}│${NC} %8s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC}\n" \
+    "SOCKET_ID" "CHANNEL" \
     "ALAT" "MLAT" "XLAT" "P90" "P95" \
     "PTPS" "PMIN" "PMAX" "P90" "P95" \
     "TTPS" "TMIN" "TMAX" "P90" "P95"
-
 
   print_sep
 
@@ -109,42 +92,46 @@ render() {
       elif ns < 1000000000 then "\((ns/1000000)|floor)ms"
       else "\((ns/1000000000)|floor)s"
       end;
-  
+
+    def fmt_null(v):
+      if v == 0 then "-" else v end;
+
     .result
     | sort_by(.name, .type, .id)
     | .[]
     | [
         .id,
-  
+        .hashId,
+
         fmt_latency(.avgLatency),
         fmt_latency(.minLatency),
         fmt_latency(.maxLatency),
         fmt_latency(.latencyP90Ns),
         fmt_latency(.latencyP95Ns),
-  
-        .pressureTps,
-        .minPressureTps,
-        .maxPressureTps,
-        .pressureTpsP90,
-        .pressureTpsP95,
-  
-        .throughputTps,
-        .minThroughputTps,
-        .maxThroughputTps,
-        .throughputTpsP90,
-        .throughputTpsP95
+
+        fmt_null(.pressureTps),
+        fmt_null(.minPressureTps),
+        fmt_null(.maxPressureTps),
+        fmt_null(.pressureTpsP90),
+        fmt_null(.pressureTpsP95),
+
+        fmt_null(.throughputTps),
+        fmt_null(.minThroughputTps),
+        fmt_null(.maxThroughputTps),
+        fmt_null(.throughputTpsP90),
+        fmt_null(.throughputTpsP95)
       ]
     | @tsv
   ' <<<"$json" |
 
   while IFS=$'\t' read -r \
-    id \
+    id hashId \
     alat mlat xlat lp90 lp95 \
     ptps pmin pmax pp90 pp95 \
     ttps tmin tmax tp90 tp95
   do
-    printf "${G}│${NC} %-35s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC}\n" \
-      "$id" \
+    printf "${G}│${NC} %-32s ${G}│${NC} %8s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC} %6s ${G}│${NC}\n" \
+      "$id" "$hashId" \
       "$alat" "$mlat" "$xlat" "$lp90" "$lp95" \
       "$ptps" "$pmin" "$pmax" "$pp90" "$pp95" \
       "$ttps" "$tmin" "$tmax" "$tp90" "$tp95"
@@ -167,10 +154,7 @@ run_once() {
 
   JSON=$(curl -s "$URL" | sed '1s/^\xEF\xBB\xBF//')
 
-  if ! $JQ -e '
-    has("result")
-    and (.result | type == "array")
-  ' <<<"$JSON" >/dev/null 2>&1; then
+  if ! $JQ -e 'has("result") and (.result | type=="array")' <<<"$JSON" >/dev/null; then
     echo "ERROR: unexpected JSON from $URL"
     echo "$JSON"
     exit 1
@@ -179,8 +163,7 @@ run_once() {
   render "$JSON"
 }
 
-
-if [ "$REFRESH" -gt 0 ]; then
+if [[ "$REFRESH" -gt 0 ]]; then
   while true; do
     run_once
     sleep "$REFRESH"

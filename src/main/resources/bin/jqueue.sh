@@ -25,26 +25,11 @@ usage() {
 # ---------- parse args ----------
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --all)
-      ALL=true
-      shift
-      ;;
-    -i)
-      ID="$2"
-      shift 2
-      ;;
-    -n)
-      NAME="$2"
-      shift 2
-      ;;
-    -r)
-      REFRESH="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1"
-      usage
-      ;;
+    --all) ALL=true; shift ;;
+    -i) ID="$2"; shift 2 ;;
+    -n) NAME="$2"; shift 2 ;;
+    -r) REFRESH="$2"; shift 2 ;;
+    *) echo "Unknown option: $1"; usage ;;
   esac
 done
 
@@ -59,7 +44,7 @@ if $ALL && ([[ -n "$ID" ]] || [[ -n "$NAME" ]]); then
   exit 1
 fi
 
-# Detect jq
+# ---------- jq ----------
 if [ -x "$BASE_DIR/lib/jq-linux64" ]; then
   JQ="$BASE_DIR/lib/jq-linux64"
 elif command -v jq >/dev/null 2>&1; then
@@ -69,22 +54,21 @@ else
   exit 1
 fi
 
-# Colors
+# ---------- colors ----------
 G="\e[32m"; R="\e[31m"; NC="\e[0m"
 
 # ================= TABLE =================
 print_top() {
-  printf "${G}┌─────────────────────────────────────┬─────────────────┬─────────────────┬─────────┬─────────┬────────────┬────────────┐${NC}\n"
+  printf "${G}┌─────────────────────────────────────┬──────────┬─────────────────┬─────────────────┬─────────┬─────────┬────────────┬────────────┐${NC}\n"
 }
 
 print_sep() {
-  printf "${G}├─────────────────────────────────────┼─────────────────┼─────────────────┼─────────┼─────────┼────────────┼────────────┤${NC}\n"
+  printf "${G}├─────────────────────────────────────┼──────────┼─────────────────┼─────────────────┼─────────┼─────────┼────────────┼────────────┤${NC}\n"
 }
 
 print_bottom() {
-  printf "${G}└─────────────────────────────────────┴─────────────────┴─────────────────┴─────────┴─────────┴────────────┴────────────┘${NC}\n"
+  printf "${G}└─────────────────────────────────────┴──────────┴─────────────────┴─────────────────┴─────────┴─────────┴────────────┴────────────┘${NC}\n"
 }
-
 
 # ================= RENDER =================
 render() {
@@ -92,11 +76,8 @@ render() {
   clear
 
   print_top
-  printf "${G}│${NC} %-35s ${G}│${NC} %15s ${G}│${NC} %15s ${G}│${NC} %7s ${G}│${NC} %7s ${G}│${NC} %10s ${G}│${NC} %10s ${G}│${NC}\n" \
-    "ID" "MSG_IN" "MSG_OUT" "QUEUE" "CNT_ERR" "LAST_ERR" "LAST_MSG"
-
-
-
+  printf "${G}│${NC} %-35s ${G}│${NC} %8s ${G}│${NC} %15s ${G}│${NC} %15s ${G}│${NC} %7s ${G}│${NC} %7s ${G}│${NC} %10s ${G}│${NC} %10s ${G}│${NC}\n" \
+    "SOCKET_ID" "CHANNEL" "MSG_IN" "MSG_OUT" "QUEUE" "CNT_ERR" "LAST_ERR" "LAST_MSG"
   print_sep
 
   $JQ -r '
@@ -115,12 +96,13 @@ render() {
       then fmt_duration((now * 1000 | floor) - ts)
       else "-"
       end;
-      
+
     .result
     | sort_by(.id)
     | .[]
     | [
         .id,
+        .hashId,
         .msgIn,
         .msgOut,
         .queue,
@@ -131,14 +113,12 @@ render() {
     | @tsv
   ' <<<"$json" |
 
-
   while IFS=$'\t' read -r \
-    id in out queue err lastErr lastMsg
+    id hashId in out queue err lastErr lastMsg
   do
-    printf "${G}│${NC} %-35s ${G}│${NC} %15s ${G}│${NC} %15s ${G}│${NC} %7s ${G}│${NC} %7s ${G}│${NC} %10s ${G}│${NC} %10s ${G}│${NC}\n" \
-      "$id" "$in" "$out" "$queue" "$err" "$lastErr" "$lastMsg"
+    printf "${G}│${NC} %-35s ${G}│${NC} %8s ${G}│${NC} %15s ${G}│${NC} %15s ${G}│${NC} %7s ${G}│${NC} %7s ${G}│${NC} %10s ${G}│${NC} %10s ${G}│${NC}\n" \
+      "$id" "$hashId" "$in" "$out" "$queue" "$err" "$lastErr" "$lastMsg"
   done
-
 
   print_bottom
 }
@@ -169,8 +149,7 @@ run_once() {
   render "$JSON"
 }
 
-
-if [ "$REFRESH" -gt 0 ]; then
+if [[ "$REFRESH" -gt 0 ]]; then
   while true; do
     run_once
     sleep "$REFRESH"

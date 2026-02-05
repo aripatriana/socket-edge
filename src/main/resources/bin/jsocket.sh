@@ -4,9 +4,9 @@ BASE_DIR=$(cd "$(dirname "$0")/.." && pwd)
 CONF_FILE="$BASE_DIR/conf/system.conf"
 
 JQUEUE_SCRIPT="$BASE_DIR/bin/jqueue.sh" 
-JINFO_SCRIPT="$BASE_DIR/bin/jinfo.sh"
+JSTATUS_SCRIPT="$BASE_DIR/bin/jstatus.sh"
 JMETRIC_SCRIPT="$BASE_DIR/bin/jmetric.sh"
-JCONTROL_SCRIPT="$BASE_DIR/bin/jcontrol.sh"   
+JCONTROL_SCRIPT="$BASE_DIR/bin/jcontrol.sh"
 
 if [ ! -f "$CONF_FILE" ]; then
   echo "ERROR: system.conf not found"
@@ -73,9 +73,9 @@ case "$1" in
     echo "Reloading configuration (port=$PORT)..."
     call "/config/reload"
     ;;
-  info)
+  status)
     shift
-    exec "$JINFO_SCRIPT" "$BASE_URL" "$@"
+    exec "$JSTATUS_SCRIPT" "$BASE_URL" "$@"
     ;;
   metric)                                    
     shift

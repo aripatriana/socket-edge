@@ -23,8 +23,8 @@ case "$1" in
   *)
     echo "ERROR: server mode is required"
     echo "Usage:"
-    echo "  ./start.sh --standalone"
-    echo "  ./start.sh --cluster"
+    echo "  ./startup.sh --standalone"
+    echo "  ./startup.sh --cluster"
     exit 1
     ;;
 esac
