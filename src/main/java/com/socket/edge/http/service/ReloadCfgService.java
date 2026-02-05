@@ -184,7 +184,7 @@ public class ReloadCfgService {
                 return;
             }
 
-            socket.addEndpoint(endpoint);
+            socket.registerEndpoint(endpoint);
         });
 
         serverDiff.modifiedEndpoints().forEach(diff -> {

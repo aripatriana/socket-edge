@@ -81,7 +81,7 @@ public final class ServerTransport implements Transport {
                         new VersionedCandidates<>(version, actives),
                         ctx
                 );
-        ctx.addProperty("back_forward_channel", channel);
+
         channel.increment();
 
         // Expose selected channel for tracing / debugging / callback purpose
