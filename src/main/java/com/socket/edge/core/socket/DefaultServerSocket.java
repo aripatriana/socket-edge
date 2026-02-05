@@ -22,9 +22,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
-public class NettyServerSocket extends AbstractSocket {
+public class DefaultServerSocket extends AbstractSocket {
 
-    private static final Logger log = LoggerFactory.getLogger(NettyServerSocket.class);
+    private static final Logger log = LoggerFactory.getLogger(DefaultServerSocket.class);
 
     private volatile SocketState socketState = SocketState.DOWN;
 
@@ -40,7 +40,7 @@ public class NettyServerSocket extends AbstractSocket {
     private SocketTelemetry socketTelemetry;
     private TelemetryRegistry telemetryRegistry;
 
-    public NettyServerSocket(boolean cluster, String name, String host, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
+    public DefaultServerSocket(boolean cluster, String name, String host, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
         super(cluster, String.format("%s-server-%d",name, port), name, host, port, telemetryRegistry);
 
         this.port = port;
@@ -117,7 +117,7 @@ public class NettyServerSocket extends AbstractSocket {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                             ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
                             ch.pipeline().addLast(new ByteDecoder());
-                            ch.pipeline().addLast(new ServerInboundHandler(NettyServerSocket.this, parser, forward));
+                            ch.pipeline().addLast(new ServerInboundHandler(DefaultServerSocket.this, parser, forward));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
                         }

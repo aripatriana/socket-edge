@@ -24,9 +24,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NettyClientSocket extends AbstractSocket {
+public class DefaultClientSocket extends AbstractSocket {
 
-    private static final Logger log = LoggerFactory.getLogger(NettyClientSocket.class);
+    private static final Logger log = LoggerFactory.getLogger(DefaultClientSocket.class);
 
     private volatile SocketState socketState = SocketState.DOWN;
 
@@ -46,7 +46,7 @@ public class NettyClientSocket extends AbstractSocket {
     private SocketType type = SocketType.CLIENT;
     private TelemetryRegistry telemetryRegistry;
 
-    public NettyClientSocket(boolean cluster, String name, SocketEndpoint se, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
+    public DefaultClientSocket(boolean cluster, String name, SocketEndpoint se, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
         super(cluster, String.format("%s-client-%s-%d",name, se.host(),se.port()), name, se.host(), se.port(), telemetryRegistry);
 
         this.host = se.host();
@@ -96,7 +96,7 @@ public class NettyClientSocket extends AbstractSocket {
                         ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                         ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
                         ch.pipeline().addLast(new ByteDecoder());
-                        ch.pipeline().addLast(new ClientInboundHandler(NettyClientSocket.this, parser, forward));
+                        ch.pipeline().addLast(new ClientInboundHandler(DefaultClientSocket.this, parser, forward));
                         ch.pipeline().addLast(new ByteEncoder());
                         ch.pipeline().addLast(new LengthFieldPrepender(2));
                     }

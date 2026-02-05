@@ -18,11 +18,11 @@ public final class ServerInboundHandler
 
     private static final Logger log = LoggerFactory.getLogger(ServerInboundHandler.class);
 
-    private final NettyServerSocket serverSocket;
+    private final DefaultServerSocket serverSocket;
     private final IsoParser isoParser;
     private final MessageContextProcess messageContextProcess;
 
-    public ServerInboundHandler(NettyServerSocket serverSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
+    public ServerInboundHandler(DefaultServerSocket serverSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
         this.serverSocket = serverSocket;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;

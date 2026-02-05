@@ -2,7 +2,7 @@ package com.socket.edge.core;
 
 import com.socket.edge.constant.SocketState;
 import com.socket.edge.core.socket.AbstractSocket;
-import com.socket.edge.core.socket.NettyServerSocket;
+import com.socket.edge.core.socket.DefaultServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.Queue;
@@ -343,7 +343,7 @@ public class SocketTelemetry {
                             .collect(Collectors.toList());
 
             active = channels.size();
-            if (socket instanceof NettyServerSocket server) {
+            if (socket instanceof DefaultServerSocket server) {
                 localHost = extractServerLocalHost(server);
             } else {
                 localHost = extractLocalHost(channels);
@@ -456,7 +456,7 @@ public class SocketTelemetry {
                 .collect(Collectors.joining(","));
     }
 
-    private String extractServerLocalHost(NettyServerSocket socket) {
+    private String extractServerLocalHost(DefaultServerSocket socket) {
         Channel ch = socket.getServerChannel();
         if (ch == null) return "-";
         InetSocketAddress addr = (InetSocketAddress) ch.localAddress();

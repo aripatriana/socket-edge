@@ -129,7 +129,7 @@ public class TransportRegister {
     }
 
     /**
-     * Add a NettyClientSocket to an existing ClientTransport for the specified channel name.
+     * Add a DefaultClientSocket to an existing ClientTransport for the specified channel name.
      *
      * Behavior:
      * - Looks up the transport by combining the client's SocketType and the channelName.
@@ -150,7 +150,7 @@ public class TransportRegister {
     }
 
     /**
-     * Remove a NettyClientSocket from an existing ClientTransport for the specified channel name.
+     * Remove a DefaultClientSocket from an existing ClientTransport for the specified channel name.
      *
      * Behavior:
      * - Looks up the transport by combining the client's SocketType and the channelName.

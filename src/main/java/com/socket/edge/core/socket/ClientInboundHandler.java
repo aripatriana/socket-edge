@@ -18,11 +18,11 @@ public final class ClientInboundHandler
 
     private static final Logger log = LoggerFactory.getLogger(ClientInboundHandler.class);
 
-    private final NettyClientSocket clientSocket;
+    private final DefaultClientSocket clientSocket;
     private IsoParser isoParser;
     private MessageContextProcess messageContextProcess;
 
-    public ClientInboundHandler(NettyClientSocket clientSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
+    public ClientInboundHandler(DefaultClientSocket clientSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
         this.clientSocket = clientSocket;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;

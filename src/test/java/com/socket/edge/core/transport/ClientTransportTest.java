@@ -1,7 +1,7 @@
 package com.socket.edge.core.transport;
 
 import com.socket.edge.core.MessageContext;
-import com.socket.edge.core.socket.NettyClientSocket;
+import com.socket.edge.core.socket.DefaultClientSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.socket.SocketChannelPooling;
 import com.socket.edge.core.strategy.SelectionStrategy;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.*;
 class ClientTransportTest {
 
     private SelectionStrategy<SocketChannel> strategy;
-    private NettyClientSocket clientSocket;
+    private DefaultClientSocket clientSocket;
     private SocketChannelPooling channelPool;
     private SocketChannel channel;
     private MessageContext ctx;
@@ -28,7 +28,7 @@ class ClientTransportTest {
     @BeforeEach
     void setUp() {
         strategy = mock(SelectionStrategy.class);
-        clientSocket = mock(NettyClientSocket.class);
+        clientSocket = mock(DefaultClientSocket.class);
         channelPool = mock(SocketChannelPooling.class);
         channel = mock(SocketChannel.class);
         ctx = mock(MessageContext.class);

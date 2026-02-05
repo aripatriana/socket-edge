@@ -1,8 +1,8 @@
 package com.socket.edge.core.transport;
 
 import com.socket.edge.constant.SocketType;
-import com.socket.edge.core.socket.NettyClientSocket;
-import com.socket.edge.core.socket.NettyServerSocket;
+import com.socket.edge.core.socket.DefaultClientSocket;
+import com.socket.edge.core.socket.DefaultServerSocket;
 import com.socket.edge.core.socket.SocketChannel;
 import com.socket.edge.core.strategy.SelectionFactory;
 import com.socket.edge.core.strategy.SelectionStrategy;
@@ -14,7 +14,6 @@ import org.mockito.MockedStatic;
 
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -44,7 +43,7 @@ class TransportRegisterTest {
 
     @Test
     void registerServerTransport_shouldRegisterSuccessfully() {
-        NettyServerSocket socket = mock(NettyServerSocket.class);
+        DefaultServerSocket socket = mock(DefaultServerSocket.class);
         when(socket.getType()).thenReturn(SocketType.SERVER);
         when(socket.getId()).thenReturn("S1");
 
@@ -72,7 +71,7 @@ class TransportRegisterTest {
 
     @Test
     void registerServerTransport_shouldFail_whenAlreadyRegistered() {
-        NettyServerSocket socket = mock(NettyServerSocket.class);
+        DefaultServerSocket socket = mock(DefaultServerSocket.class);
         when(socket.getType()).thenReturn(SocketType.SERVER);
 
         try (MockedStatic<SelectionFactory> sf =
@@ -102,7 +101,7 @@ class TransportRegisterTest {
 
     @Test
     void registerClientTransport_shouldRegisterSuccessfully() {
-        NettyClientSocket socket = mock(NettyClientSocket.class);
+        DefaultClientSocket socket = mock(DefaultClientSocket.class);
         when(socket.getType()).thenReturn(SocketType.CLIENT);
 
         SelectionStrategy<SocketChannel> strategy = mock(SelectionStrategy.class);
@@ -137,7 +136,7 @@ class TransportRegisterTest {
 
     @Test
     void registerClientTransport_shouldFail_whenAlreadyRegistered() {
-        NettyClientSocket socket = mock(NettyClientSocket.class);
+        DefaultClientSocket socket = mock(DefaultClientSocket.class);
         when(socket.getType()).thenReturn(SocketType.CLIENT);
 
         try (MockedStatic<SelectionFactory> sf =
@@ -160,7 +159,7 @@ class TransportRegisterTest {
 
     @Test
     void registerClientTransport_shouldAddSocket_whenTransportExists() {
-        NettyClientSocket socket = mock(NettyClientSocket.class);
+        DefaultClientSocket socket = mock(DefaultClientSocket.class);
         when(socket.getType()).thenReturn(SocketType.CLIENT);
         when(socket.getId()).thenReturn("C1");
 
@@ -175,7 +174,7 @@ class TransportRegisterTest {
 
     @Test
     void registerClientTransport_shouldIgnore_whenTransportNotClientTransport() {
-        NettyClientSocket socket = mock(NettyClientSocket.class);
+        DefaultClientSocket socket = mock(DefaultClientSocket.class);
         when(socket.getType()).thenReturn(SocketType.CLIENT);
 
         when(provider.get("CLIENT|CH1"))
@@ -188,7 +187,7 @@ class TransportRegisterTest {
 
     @Test
     void unregisterClientTransport_shouldRemoveSocket_whenTransportExists() {
-        NettyClientSocket socket = mock(NettyClientSocket.class);
+        DefaultClientSocket socket = mock(DefaultClientSocket.class);
         when(socket.getType()).thenReturn(SocketType.CLIENT);
         when(socket.getId()).thenReturn("C1");
 
@@ -224,7 +223,7 @@ class TransportRegisterTest {
         when(cfg.client()).thenReturn(clientCfg);
         when(clientCfg.strategy()).thenReturn("roundrobin");
 
-        NettyServerSocket socket = mock(NettyServerSocket.class);
+        DefaultServerSocket socket = mock(DefaultServerSocket.class);
         when(socket.getType()).thenReturn(SocketType.SERVER);
         when(socket.getId()).thenReturn("S1");
 
@@ -271,7 +270,7 @@ class TransportRegisterTest {
         ChannelCfg cfg = mock(ChannelCfg.class);
         when(cfg.name()).thenReturn("CH1");
 
-        NettyClientSocket socket = mock(NettyClientSocket.class);
+        DefaultClientSocket socket = mock(DefaultClientSocket.class);
         when(socket.getType()).thenReturn(SocketType.CLIENT);
         when(socket.getId()).thenReturn("C1");
 

@@ -24,7 +24,7 @@ public class SocketFactory {
     }
 
     public AbstractSocket createServer(ChannelCfg cfg) {
-        return new NettyServerSocket(
+        return new DefaultServerSocket(
                 SystemBootstrap.isCluster(),
                 cfg.name(),
                 cfg.server().listenHost(),
@@ -37,7 +37,7 @@ public class SocketFactory {
     }
 
     public AbstractSocket createClient(ChannelCfg cfg, SocketEndpoint endpoint) {
-        return new NettyClientSocket(
+        return new DefaultClientSocket(
                 SystemBootstrap.isCluster(),
                 cfg.name(),
                 endpoint,
