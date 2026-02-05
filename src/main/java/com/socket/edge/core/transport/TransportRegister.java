@@ -12,38 +12,62 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Objects;
 
+
 /**
- * Responsible for registering/unregistering transports (server/client) into the TransportProvider.
- * Each transport is keyed by a combination of SocketType and channel name.
+ * {@code TransportRegister} is responsible for registering and unregistering
+ * {@link Transport} instances into a {@link TransportProvider}.
+ *
+ * <p>
+ * This class acts as an orchestration layer that:
+ * <ul>
+ *   <li>Creates {@link ServerTransport} and {@link ClientTransport} instances</li>
+ *   <li>Builds consistent transport keys based on socket type and channel</li>
+ *   <li>Delegates transport lifecycle registration to {@link TransportProvider}</li>
+ * </ul>
+ * </p>
+ *
+ * <p>
+ * This class does not manage the lifecycle of sockets or channels directly.
+ * It only coordinates transport registration and composition.
+ * </p>
  */
 public class TransportRegister {
 
-    private static final Logger log = LoggerFactory.getLogger(TransportRegister.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(TransportRegister.class);
 
+    /**
+     * Underlying provider used to store and manage transports.
+     */
     private final TransportProvider transportProvider;
 
     /**
-     * Create a TransportRegister backed by the given TransportProvider.
+     * Creates a new {@code TransportRegister}.
      *
-     * @param transportProvider provider used to register/unregister transports (must not be null)
+     * @param transportProvider transport provider
+     * @throws NullPointerException if transportProvider is {@code null}
      */
     public TransportRegister(TransportProvider transportProvider) {
         this.transportProvider = transportProvider;
     }
 
     /**
-     * Register a server transport for the given channel configuration.
+     * Registers a server-side transport for the given channel configuration.
      *
-     * Behavior:
-     * - Validates that cfg and socket are not null.
-     * - Creates a SelectionStrategy from the channel client strategy.
-     * - Registers a ServerTransport keyed by the socket's type and channel name.
+     * <p>
+     * A {@link ServerTransport} will be created and registered using a key
+     * composed of socket type and channel name.
+     * </p>
      *
-     * @param cfg server channel configuration (not null)
-     * @param socket server socket to expose (not null)
+     * @param cfg channel configuration
+     * @param socket server socket
+     * @throws NullPointerException if cfg or socket is {@code null}
+     * @throws IllegalStateException if a transport is already registered
+     *                              for the same key
      */
     public void registerServerTransport(ChannelCfg cfg, AbstractSocket socket) {
         log.debug("registering server transport for channel {} socket {}", cfg.name(), socket.getId());
+
         Objects.requireNonNull(cfg, "cfg must not be null");
         Objects.requireNonNull(socket, "socket must not be null");
 
@@ -64,31 +88,19 @@ public class TransportRegister {
     }
 
     /**
-     * Unregister the server transport associated with the given channel configuration.
+     * Registers a client-side transport using multiple client sockets.
      *
-     * Behavior:
-     * - Removes the transport entry for SocketType.SOCKET_SERVER and the channel name.
+     * <p>
+     * All provided sockets will be aggregated into a single
+     * {@link ClientTransport}.
+     * </p>
      *
-     * @param cfg channel configuration whose server transport should be removed (may be null -> NPE)
-     */
-    public void unregisterServerTransport(ChannelCfg cfg) {
-        log.debug("unregistering server transport for channel {}", cfg.name());
-        transportProvider.unregister(key(SocketType.SERVER, cfg.name()));
-    }
-
-    /**
-     * Register a client transport for the given channel configuration and client sockets.
-     *
-     * Behavior:
-     * - Validates cfg and clientSockets (not null) and that the list is not empty.
-     * - Uses the first client's SocketType as the transport key.
-     * - Creates a selection strategy from the channel client strategy and registers ClientTransport.
-     *
-     * Exceptions:
-     * - Throws IllegalArgumentException when clientSockets is empty.
-     *
-     * @param cfg channel configuration for client transport (not null)
-     * @param clientSockets list of client sockets to be used by the transport (not null, not empty)
+     * @param cfg channel configuration
+     * @param clientSockets list of client sockets
+     * @throws NullPointerException if cfg or clientSockets is {@code null}
+     * @throws IllegalArgumentException if clientSockets is empty
+     * @throws IllegalStateException if a transport is already registered
+     *                              for the same key
      */
     public void registerClientTransport(ChannelCfg cfg, List<AbstractSocket> clientSockets) {
         log.debug("registering client transport for channel {}", cfg.name());
@@ -96,7 +108,9 @@ public class TransportRegister {
         Objects.requireNonNull(cfg, "cfg must not be null");
         Objects.requireNonNull(clientSockets, "clientSockets must not be null");
         if (clientSockets.isEmpty()) {
-            throw new IllegalArgumentException("clientSockets must not be empty");
+            throw new IllegalArgumentException(
+                    "clientSockets must not be empty"
+            );
         }
 
         String key = key(clientSockets.get(0).getType(), cfg.name());
@@ -116,79 +130,100 @@ public class TransportRegister {
     }
 
     /**
-     * Unregister the client transport associated with the given channel configuration.
+     * Adds a client socket to an existing {@link ClientTransport}.
      *
-     * Behavior:
-     * - Removes the transport entry for SocketType.SOCKET_CLIENT and the channel name.
+     * <p>
+     * If no matching {@link ClientTransport} exists, this method
+     * will log a warning and perform no action.
+     * </p>
      *
-     * @param cfg channel configuration whose client transport should be removed (may be null -> NPE)
-     */
-    public void unregisterClientTransport(ChannelCfg cfg) {
-        log.debug("Unregistering client transport for channel {}", cfg.name());
-        transportProvider.unregister(key(SocketType.CLIENT, cfg.name()));
-    }
-
-    /**
-     * Add a DefaultClientSocket to an existing ClientTransport for the specified channel name.
-     *
-     * Behavior:
-     * - Looks up the transport by combining the client's SocketType and the channelName.
-     * - If the found object is a ClientTransport, invokes addSocket; otherwise logs a warning.
-     *
-     * @param cfg name of the channel to which the socket should be added (not null)
-     * @param clientSocket socket instance to add (not null)
+     * @param cfg channel configuration
+     * @param clientSocket client socket to add
      */
     public void registerClientTransport(ChannelCfg cfg, AbstractSocket clientSocket) {
         log.debug("Registering client transport for channel {} socket {}", cfg.name(), clientSocket.getId());
+
         String key = key(clientSocket.getType(), cfg.name());
         Object t = transportProvider.get(key);
+
         if (t instanceof ClientTransport) {
             ((ClientTransport) t).addSocket(clientSocket);
         } else {
-            log.warn("No ClientTransport found for key {} or type mismatch", key(clientSocket.getType(), cfg.name()));
+            log.warn("No ClientTransport found for key {} or type mismatch", key);
         }
     }
 
     /**
-     * Remove a DefaultClientSocket from an existing ClientTransport for the specified channel name.
+     * Unregisters a server-side transport for the given channel.
      *
-     * Behavior:
-     * - Looks up the transport by combining the client's SocketType and the channelName.
-     * - If the found object is a ClientTransport, invokes removeSocket; otherwise logs a warning.
+     * <p>
+     * Underlying transport shutdown will be handled by
+     * {@link TransportProvider#unregister(String)}.
+     * </p>
      *
-     * @param cfg name of the channel from which the socket should be removed (not null)
-     * @param clientSocket socket instance to remove (not null)
+     * @param cfg channel configuration
+     */
+    public void unregisterServerTransport(ChannelCfg cfg) {
+        log.debug("unregistering server transport for channel {}", cfg.name());
+        transportProvider.unregister(
+                key(SocketType.SERVER, cfg.name())
+        );
+    }
+
+    /**
+     * Unregisters a client-side transport for the given channel.
+     *
+     * @param cfg channel configuration
+     */
+    public void unregisterClientTransport(ChannelCfg cfg) {
+        log.debug("Unregistering client transport for channel {}", cfg.name());
+        transportProvider.unregister(
+                key(SocketType.CLIENT, cfg.name())
+        );
+    }
+
+    /**
+     * Removes a client socket from an existing {@link ClientTransport}.
+     *
+     * <p>
+     * If the transport does not exist or is not a {@link ClientTransport},
+     * this method will log a warning and perform no action.
+     * </p>
+     *
+     * @param cfg channel configuration
+     * @param clientSocket client socket to remove
      */
     public void unregisterClientTransport(ChannelCfg cfg, AbstractSocket clientSocket) {
-        log.debug("Unregistering client transport from channel {} socket {} ", cfg.name(), clientSocket.getId());
+        log.debug("Unregistering client transport from channel {} socket {}", cfg.name(), clientSocket.getId());
 
         String key = key(clientSocket.getType(), cfg.name());
         Object t = transportProvider.get(key);
+
         if (t instanceof ClientTransport) {
             ((ClientTransport) t).removeSocket(clientSocket);
         } else {
-            log.warn("No ClientTransport found for key {} or type mismatch", key(clientSocket.getType(), cfg.name()));
+            log.warn("No ClientTransport found for key {} or type mismatch", key);
         }
     }
 
     /**
-     * Destroy all transports and cleanup resources in the TransportProvider.
+     * Destroys all registered transports.
      *
-     * Behavior:
-     * - Delegates to transportProvider.destroy().
+     * <p>
+     * This method delegates to {@link TransportProvider#destroy()}
+     * and should be invoked during application shutdown.
+     * </p>
      */
     public void destroy() {
         transportProvider.destroy();
     }
 
     /**
-     * Compose the internal map key used to store transports.
+     * Builds a transport key using socket type and channel name.
      *
-     * Format: <SocketType.name()>|<channelName>
-     *
-     * @param type socket type used as first portion of the key (not null)
-     * @param channelName channel name used as second portion of the key (may be null)
-     * @return composed key string
+     * @param type socket type
+     * @param channelName channel name
+     * @return transport key
      */
     private String key(SocketType type, String channelName) {
         return type.name() + "|" + channelName;
