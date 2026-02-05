@@ -163,8 +163,8 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
             return false;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("{} send {}", socketId, new String(bytes));
+        if (log.isInfoEnabled()) {
+            log.info("{} send {}", socketId, new String(bytes));
         }
 
         ch.writeAndFlush(Unpooled.wrappedBuffer(bytes));

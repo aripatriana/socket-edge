@@ -160,8 +160,7 @@ public class SEEngine extends RouteBuilder {
                             Exception.class
                     );
 
-                    MessageContext ctx =
-                            e.getIn().getBody(MessageContext.class);
+                    MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     if (ctx != null) {
                         ctx.getSocketTelemetry().onError();
@@ -203,9 +202,7 @@ public class SEEngine extends RouteBuilder {
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
 
-                    Iso8583Profile profile =
-                            metadataHolder.get().profiles()
-                                    .get(ctx.getChannelCfg().profile());
+                    Iso8583Profile profile = metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
 
                     if (ctx.field(cu.getString("message.packager.key")) == null) {
                         throw new IllegalArgumentException("Missing MTI (de1)");
@@ -213,14 +210,11 @@ public class SEEngine extends RouteBuilder {
 
                     for (String de : profile.correlationFields()) {
                         if (ctx.field(de) == null) {
-                            throw new IllegalArgumentException(
-                                    "Missing correlation field: " + de
-                            );
+                            throw new IllegalArgumentException("Missing correlation field: " + de);
                         }
                     }
 
-                    Direction dir =
-                            profileProcessor.resolveDirection(ctx, profile);
+                    Direction dir = profileProcessor.resolveDirection(ctx, profile);
 
                     ctx.setProfile(profile);
                     ctx.setDirection(dir);
@@ -234,8 +228,7 @@ public class SEEngine extends RouteBuilder {
                             metadataHolder.get().profiles()
                                     .get(ctx.getChannelCfg().profile());
 
-                    String key =
-                            profileProcessor.buildCorrelationKey(ctx, profile);
+                    String key = profileProcessor.buildCorrelationKey(ctx, profile);
 
                     ctx.setCorrelationKey(key);
                 })
@@ -283,10 +276,7 @@ public class SEEngine extends RouteBuilder {
 
                     transport.send(ctx);
 
-                    long latencyNs =
-                            System.nanoTime() -
-                                    (long) ctx.getProperty("receivedTimeNs");
-
+                    long latencyNs = System.nanoTime() - (long) ctx.getProperty("receivedTimeNs");
                     ctx.getSocketTelemetry().onComplete(latencyNs);
                 });
 
@@ -300,26 +290,16 @@ public class SEEngine extends RouteBuilder {
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
                     try {
-                        CorrelationEntry replyEntry =
-                                correlationStore.get(ctx.getCorrelationKey());
+                        CorrelationEntry replyEntry = correlationStore.get(ctx.getCorrelationKey());
 
                         if (replyEntry == null) {
-                            throw new IllegalStateException(
-                                    "No inbound correlation entry for correlation="
-                                            + ctx.getCorrelationKey()
-                            );
+                            throw new IllegalStateException( "No inbound correlation entry for correlation=" + ctx.getCorrelationKey());
                         }
 
-                        AbstractSocket replySocket =
-                                socketManager.getSocket(
-                                        replyEntry.replySocketId()
-                                );
+                        AbstractSocket replySocket = socketManager.getSocket(replyEntry.replySocketId());
 
                         if (replySocket == null) {
-                            throw new IllegalStateException(
-                                    "No inbound socket for correlation="
-                                            + ctx.getCorrelationKey()
-                            );
+                            throw new IllegalStateException("No inbound socket for correlation=" + ctx.getCorrelationKey());
                         }
 
                         SocketChannel replyChannel =
@@ -331,29 +311,21 @@ public class SEEngine extends RouteBuilder {
                         if (replyChannel != null && replyChannel.isActive()) {
                             replyChannel.send(ctx.getRawBytes());
                         } else {
-                            List<SocketChannel> candidates =
-                                    replySocket.channelPool().activeChannels();
+                            List<SocketChannel> candidates = replySocket.channelPool().activeChannels();
 
                             if (candidates != null && !candidates.isEmpty()) {
                                 candidates.get(0).send(ctx.getRawBytes());
                             } else {
-                                throw new IllegalStateException(
-                                        "No channel active for correlation="
-                                                + ctx.getCorrelationKey()
-                                );
+                                throw new IllegalStateException("No channel active for correlation=" + ctx.getCorrelationKey());
                             }
                         }
 
-                        long latencyNs =
-                                System.nanoTime() -
-                                        (long) ctx.getProperty("receivedTimeNs");
-
+                        long latencyNs = System.nanoTime() - (long) ctx.getProperty("receivedTimeNs");
                         ctx.getSocketTelemetry().onComplete(latencyNs);
 
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());
-                        LoadAware la =
-                                (LoadAware) ctx.getProperty("back_forward_channel");
+                        LoadAware la = (LoadAware) ctx.getProperty("back_forward_channel");
                         if (la != null) {
                             la.decrement();
                         }
@@ -367,8 +339,7 @@ public class SEEngine extends RouteBuilder {
                 .routeId("engine-unknown")
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
-                    log.warn("No channel found for message={}",
-                            new String(ctx.getRawBytes()));
+                    log.warn("No channel found for message={}", new String(ctx.getRawBytes()));
                 });
     }
 }

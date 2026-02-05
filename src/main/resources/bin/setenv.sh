@@ -20,3 +20,6 @@ export SOCKET_EDGE_OPTS="$SOCKET_EDGE_OPTS -Dcom.sun.management.jmxremote.ssl=fa
 
 export SOCKET_EDGE_OPTS="$SOCKET_EDGE_OPTS -Djava.rmi.server.hostname=13.131.9.162"
 export SOCKET_EDGE_OPTS="$SOCKET_EDGE_OPTS -Djava.net.preferIPv4Stack=true"
+
+export $SOCKET_EDGE_OPTS="$SOCKET_EDGE_OPTS -Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector -Dlog4j2.asyncLoggerRingBufferSize=1048576 -Dlog4j2.asyncLoggerWaitStrategy=Sleep -Dlog4j2.asyncLoggerRetries=200 -Dlog4j2.asyncLoggerSleepTimeNs=1000"
+

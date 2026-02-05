@@ -47,8 +47,8 @@ public final class ServerInboundHandler
             }
 
             byte[] rawBytes = (byte[]) msg;
-            if (log.isDebugEnabled()) {
-                log.debug("{} read {}", serverSocket.getId(), new String(rawBytes));
+            if (log.isInfoEnabled()) {
+                log.info("{} read {}", serverSocket.getId(), new String(rawBytes));
             }
 
             Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
