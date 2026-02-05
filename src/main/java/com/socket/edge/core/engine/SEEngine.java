@@ -22,21 +22,99 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 
+/**
+ * Core routing engine for ISO 8583 message processing.
+ *
+ * <p>{@code SEEngine} is an Apache Camel {@link RouteBuilder} that orchestrates
+ * end-to-end ISO 8583 message handling, including:
+ * <ul>
+ *   <li>Inbound message reception</li>
+ *   <li>Channel configuration resolution</li>
+ *   <li>ISO profile and direction resolution</li>
+ *   <li>Correlation key generation</li>
+ *   <li>Inbound / outbound routing</li>
+ *   <li>Request–response correlation management</li>
+ *   <li>Transport dispatch and socket reply handling</li>
+ * </ul>
+ *
+ * <p>The engine is designed to be:
+ * <ul>
+ *   <li>Asynchronous (SEDA-based)</li>
+ *   <li>Cluster-friendly</li>
+ *   <li>Profile-driven</li>
+ *   <li>Transport-agnostic</li>
+ * </ul>
+ *
+ * <p>Message flow (high level):
+ * <ol>
+ *   <li>Receive message from socket layer</li>
+ *   <li>Resolve channel configuration</li>
+ *   <li>Resolve ISO profile and direction</li>
+ *   <li>Build correlation key</li>
+ *   <li>Route to inbound or outbound flow</li>
+ *   <li>Dispatch via transport or reply via socket</li>
+ * </ol>
+ *
+ * <p>This class is instantiated once per Camel context.</p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
+ */
 public class SEEngine extends RouteBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(SEEngine.class);
 
+    /**
+     * Socket manager used to resolve sockets for outbound replies.
+     */
     private SocketManager socketManager;
-    private MetadataHolder metadataHolder;
-    private Iso8583ProfileResolver profileProcessor;
-    private ChannelCfgSelector channelCfgSelector;
-    private CorrelationStore correlationStore;
-    private TransportProvider transportProvider;
-    private ConfigUtil cu = new ConfigUtil();
 
-    public SEEngine(MetadataHolder metadataHolder, Iso8583ProfileResolver profileProcessor,
-                    ChannelCfgSelector channelCfgSelector, CorrelationStore correlationStore,
-                    TransportProvider transportProvider) {
+    /**
+     * Holder for runtime metadata (channels, profiles, etc).
+     */
+    private final MetadataHolder metadataHolder;
+
+    /**
+     * ISO 8583 profile resolver.
+     */
+    private final Iso8583ProfileResolver profileProcessor;
+
+    /**
+     * Channel configuration selector.
+     */
+    private final ChannelCfgSelector channelCfgSelector;
+
+    /**
+     * Correlation store for request–response mapping.
+     */
+    private final CorrelationStore correlationStore;
+
+    /**
+     * Transport provider for outbound message delivery.
+     */
+    private final TransportProvider transportProvider;
+
+    /**
+     * Configuration utility.
+     */
+    private final ConfigUtil cu = new ConfigUtil();
+
+    /**
+     * Creates a new SEEngine instance.
+     *
+     * @param metadataHolder      runtime metadata holder
+     * @param profileProcessor   ISO profile resolver
+     * @param channelCfgSelector channel configuration selector
+     * @param correlationStore   correlation store
+     * @param transportProvider  transport provider
+     */
+    public SEEngine(
+            MetadataHolder metadataHolder,
+            Iso8583ProfileResolver profileProcessor,
+            ChannelCfgSelector channelCfgSelector,
+            CorrelationStore correlationStore,
+            TransportProvider transportProvider
+    ) {
         this.metadataHolder = metadataHolder;
         this.profileProcessor = profileProcessor;
         this.channelCfgSelector = channelCfgSelector;
@@ -44,12 +122,36 @@ public class SEEngine extends RouteBuilder {
         this.transportProvider = transportProvider;
     }
 
+    /**
+     * Binds the socket manager after initialization.
+     *
+     * <p>This is required for resolving reply sockets
+     * during outbound message handling.</p>
+     *
+     * @param socketManager socket manager
+     */
     public void bindSocketManager(SocketManager socketManager) {
         this.socketManager = socketManager;
     }
 
+    /**
+     * Configures all Camel routes for the engine.
+     *
+     * <p>This method defines:
+     * <ul>
+     *   <li>Global exception handling</li>
+     *   <li>Message receive route</li>
+     *   <li>Inbound processing route</li>
+     *   <li>Outbound processing route</li>
+     *   <li>Fallback route for unknown direction</li>
+     * </ul>
+     */
     @Override
     public void configure() throws Exception {
+
+        /*
+         * Global exception handler
+         */
         onException(Exception.class)
                 .handled(true)
                 .process(e -> {
@@ -60,27 +162,29 @@ public class SEEngine extends RouteBuilder {
 
                     MessageContext ctx =
                             e.getIn().getBody(MessageContext.class);
-                    ctx.getSocketTelemetry().onError();
 
                     if (ctx != null) {
+                        ctx.getSocketTelemetry().onError();
                         log.error(
-                                "corrKey={} errMsg={} msg={}",ctx.getCorrelationKey(),
+                                "corrKey={} errMsg={} msg={}",
+                                ctx.getCorrelationKey(),
                                 ex.getMessage(),
                                 new String(ctx.getRawBytes())
                         );
                     } else {
-                        log.error(
-                                "errMsg=" + ex.getMessage()
-                        );
+                        log.error("errMsg={}", ex.getMessage());
                     }
                 });
 
-        from("seda:receive?concurrentConsumers=" + cu.getInt("engine.seda.receive.consumers",8)
-                        + "&blockWhenFull=" + cu.getBoolean("engine.seda.receive.block-when-full", false)
-                        + "&size=" + cu.getInt("engine.seda.receive.queue-size", 1000))
+        /*
+         * Receive route
+         */
+        from("seda:receive?concurrentConsumers=" + cu.getInt("engine.seda.receive.consumers", 8)
+                + "&blockWhenFull=" + cu.getBoolean("engine.seda.receive.block-when-full", false)
+                + "&size=" + cu.getInt("engine.seda.receive.queue-size", 1000))
                 .routeId("engine-receive")
 
-                // 1. resolve channel config by socket
+                // 1. Resolve channel configuration
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
 
@@ -95,12 +199,13 @@ public class SEEngine extends RouteBuilder {
                     ctx.setChannelCfg(cfg);
                 })
 
-                // 2. resolve profile & direction
+                // 2. Resolve ISO profile and direction
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
 
                     Iso8583Profile profile =
-                            metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
+                            metadataHolder.get().profiles()
+                                    .get(ctx.getChannelCfg().profile());
 
                     if (ctx.field(cu.getString("message.packager.key")) == null) {
                         throw new IllegalArgumentException("Missing MTI (de1)");
@@ -109,7 +214,8 @@ public class SEEngine extends RouteBuilder {
                     for (String de : profile.correlationFields()) {
                         if (ctx.field(de) == null) {
                             throw new IllegalArgumentException(
-                                    "Missing correlation field: " + de);
+                                    "Missing correlation field: " + de
+                            );
                         }
                     }
 
@@ -120,12 +226,13 @@ public class SEEngine extends RouteBuilder {
                     ctx.setDirection(dir);
                 })
 
-                // 3) build correlation key (once)
+                // 3. Build correlation key
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     Iso8583Profile profile =
-                            metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
+                            metadataHolder.get().profiles()
+                                    .get(ctx.getChannelCfg().profile());
 
                     String key =
                             profileProcessor.buildCorrelationKey(ctx, profile);
@@ -133,15 +240,18 @@ public class SEEngine extends RouteBuilder {
                     ctx.setCorrelationKey(key);
                 })
 
-                // 3. route by direction
+                // 4. Route by direction
                 .choice()
-                    .when(simple("${body.direction} == 'INBOUND'"))
-                        .to("seda:inbound")
-                    .when(simple("${body.direction} == 'OUTBOUND'"))
-                        .to("seda:outbound")
-                    .otherwise()
-                        .to("seda:unknown");
+                .when(simple("${body.direction} == 'INBOUND'"))
+                .to("seda:inbound")
+                .when(simple("${body.direction} == 'OUTBOUND'"))
+                .to("seda:outbound")
+                .otherwise()
+                .to("seda:unknown");
 
+        /*
+         * Inbound route
+         */
         from("seda:inbound?concurrentConsumers=" + cu.getInt("engine.seda.inbound.consumers", 8)
                 + "&blockWhenFull=" + cu.getBoolean("engine.seda.inbound.block-when-full", false)
                 + "&size=" + cu.getInt("engine.seda.inbound.queue-size", 1000))
@@ -151,16 +261,21 @@ public class SEEngine extends RouteBuilder {
 
                     correlationStore.put(
                             ctx.getCorrelationKey(),
-                            CorrelationEntry.newEntry(ctx.getCorrelationKey(),
+                            CorrelationEntry.newEntry(
+                                    ctx.getCorrelationKey(),
                                     ctx.getSocketId(),
-                                    ctx.getSocketChannel().channelId().asLongText())
+                                    ctx.getSocketChannel().channelId().asLongText()
+                            )
                     );
                 })
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     Transport transport =
-                            transportProvider.resolve(ctx.getChannelCfg(), ctx.getOutboundType());
+                            transportProvider.resolve(
+                                    ctx.getChannelCfg(),
+                                    ctx.getOutboundType()
+                            );
 
                     if (!transport.isActive()) {
                         throw new IllegalStateException("Transport NOT ACTIVE");
@@ -168,21 +283,26 @@ public class SEEngine extends RouteBuilder {
 
                     transport.send(ctx);
 
-                    long latencyNs = (System.nanoTime()-(long)ctx.getProperty("receivedTimeNs"));
+                    long latencyNs =
+                            System.nanoTime() -
+                                    (long) ctx.getProperty("receivedTimeNs");
+
                     ctx.getSocketTelemetry().onComplete(latencyNs);
                 });
 
+        /*
+         * Outbound route (reply)
+         */
         from("seda:outbound?concurrentConsumers=" + cu.getInt("engine.seda.outbound.consumers", 8)
                 + "&blockWhenFull=" + cu.getBoolean("engine.seda.outbound.block-when-full", false)
                 + "&size=" + cu.getInt("engine.seda.outbound.queue-size", 1000))
                 .routeId("engine-outbound")
-
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
                     try {
-                        // check correlation entry
                         CorrelationEntry replyEntry =
                                 correlationStore.get(ctx.getCorrelationKey());
+
                         if (replyEntry == null) {
                             throw new IllegalStateException(
                                     "No inbound correlation entry for correlation="
@@ -190,8 +310,11 @@ public class SEEngine extends RouteBuilder {
                             );
                         }
 
-                        // check reply socket
-                        AbstractSocket replySocket = socketManager.getSocket(replyEntry.replySocketId());
+                        AbstractSocket replySocket =
+                                socketManager.getSocket(
+                                        replyEntry.replySocketId()
+                                );
+
                         if (replySocket == null) {
                             throw new IllegalStateException(
                                     "No inbound socket for correlation="
@@ -199,44 +322,53 @@ public class SEEngine extends RouteBuilder {
                             );
                         }
 
-                        // check reply channel
-                        SocketChannel replyChannel = replySocket.channelPool().getChannelById(replyEntry.replyChannelId());
-                        if (replyChannel != null) {
-                            if (!replyChannel.isActive()) {
-                                throw new IllegalStateException(
-                                        "No channel active for correlation="
-                                                + ctx.getCorrelationKey() + " channelId=" + replyEntry.replyChannelId()
-                                );
-                            }
+                        SocketChannel replyChannel =
+                                replySocket.channelPool()
+                                        .getChannelById(
+                                                replyEntry.replyChannelId()
+                                        );
+
+                        if (replyChannel != null && replyChannel.isActive()) {
                             replyChannel.send(ctx.getRawBytes());
                         } else {
-                            List<SocketChannel> replyCandidates = replySocket.channelPool().activeChannels();
-                            if (replyCandidates != null && replyCandidates.size() > 0) {
-                                replyChannel = replyCandidates.get(0);
-                                replyChannel.send(ctx.getRawBytes());
+                            List<SocketChannel> candidates =
+                                    replySocket.channelPool().activeChannels();
+
+                            if (candidates != null && !candidates.isEmpty()) {
+                                candidates.get(0).send(ctx.getRawBytes());
                             } else {
                                 throw new IllegalStateException(
                                         "No channel active for correlation="
-                                                + ctx.getCorrelationKey() + " socketId=" + replyEntry.replySocketId()
+                                                + ctx.getCorrelationKey()
                                 );
                             }
                         }
-                        long latencyNs = (System.nanoTime()-(long)ctx.getProperty("receivedTimeNs"));
+
+                        long latencyNs =
+                                System.nanoTime() -
+                                        (long) ctx.getProperty("receivedTimeNs");
+
                         ctx.getSocketTelemetry().onComplete(latencyNs);
+
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());
-                        LoadAware loadAware = (LoadAware) ctx.getProperty("back_forward_channel");
-                        if (loadAware != null) {
-                            loadAware.decrement();
+                        LoadAware la =
+                                (LoadAware) ctx.getProperty("back_forward_channel");
+                        if (la != null) {
+                            la.decrement();
                         }
                     }
                 });
 
+        /*
+         * Unknown direction route
+         */
         from("seda:unknown")
                 .routeId("engine-unknown")
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
-                    log.warn("no channel found for " + new String(ctx.getRawBytes()));
+                    log.warn("No channel found for message={}",
+                            new String(ctx.getRawBytes()));
                 });
     }
 }
