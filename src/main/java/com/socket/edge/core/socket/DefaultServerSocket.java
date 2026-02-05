@@ -22,52 +22,159 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+/**
+ * Default implementation of a server-side socket using Netty.
+ *
+ * <p>{@code DefaultServerSocket} listens for inbound TCP connections and
+ * processes incoming messages through a configurable Netty pipeline.
+ * It supports:
+ * <ul>
+ *   <li>Cluster-aware activation (MASTER only)</li>
+ *   <li>Dynamic allowlist of permitted endpoints</li>
+ *   <li>Channel pooling and lifecycle management</li>
+ *   <li>Telemetry integration</li>
+ *   <li>ISO message decoding and forwarding</li>
+ * </ul>
+ *
+ * <p>In cluster mode, the server socket binds to the port and accepts
+ * connections only when the node role is {@link NodeRole#MASTER}.
+ * When running as {@link NodeRole#SLAVE}, the socket remains in
+ * {@link SocketState#STANDBY}.</p>
+ *
+ * <p>Thread safety:
+ * <ul>
+ *   <li>Lifecycle methods are synchronized</li>
+ *   <li>{@link #socketState} and {@link #running} use volatile visibility</li>
+ *   <li>Netty event loops manage I/O concurrency</li>
+ * </ul>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
+ */
 public class DefaultServerSocket extends AbstractSocket {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultServerSocket.class);
 
+    /**
+     * Current socket state.
+     */
     private volatile SocketState socketState = SocketState.DOWN;
 
+    /**
+     * Server listening port.
+     */
     private final int port;
+
+    /**
+     * Netty boss event loop group (acceptor).
+     */
     private EventLoopGroup boss;
+
+    /**
+     * Netty worker event loop group (I/O workers).
+     */
     private EventLoopGroup worker;
+
+    /**
+     * Server channel bound to the listening port.
+     */
     private Channel serverChannel;
+
+    /**
+     * Indicates whether the socket is running.
+     */
     private volatile boolean running = false;
+
+    /**
+     * ISO message parser.
+     */
     private IsoParser parser;
+
+    /**
+     * Message forwarding processor.
+     */
     private MessageContextProcess forward;
+
+    /**
+     * Channel pool associated with this socket.
+     */
     private SocketChannelPooling channelPool;
-    private SocketType type = SocketType.SERVER;
+
+    /**
+     * Socket type.
+     */
+    private final SocketType type = SocketType.SERVER;
+
+    /**
+     * Socket telemetry.
+     */
     private SocketTelemetry socketTelemetry;
+
+    /**
+     * Telemetry registry.
+     */
     private TelemetryRegistry telemetryRegistry;
 
-    public DefaultServerSocket(boolean cluster, String name, String host, int port, List<SocketEndpoint> allowlist, TelemetryRegistry telemetryRegistry, IsoParser parser, MessageContextProcess forward) {
-        super(cluster, String.format("%s-server-%d",name, port), name, host, port, telemetryRegistry);
+    /**
+     * Creates a new server socket.
+     *
+     * @param cluster           whether cluster mode is enabled
+     * @param name              socket name
+     * @param host              bind host
+     * @param port              bind port
+     * @param allowlist         list of allowed remote endpoints
+     * @param telemetryRegistry telemetry registry
+     * @param parser            ISO message parser
+     * @param forward           message forwarding processor
+     */
+    public DefaultServerSocket(
+            boolean cluster,
+            String name,
+            String host,
+            int port,
+            List<SocketEndpoint> allowlist,
+            TelemetryRegistry telemetryRegistry,
+            IsoParser parser,
+            MessageContextProcess forward
+    ) {
+        super(
+                cluster,
+                String.format("%s-server-%d", name, port),
+                name,
+                host,
+                port,
+                telemetryRegistry
+        );
 
         this.port = port;
         this.parser = parser;
         this.forward = forward;
 
-
-        allowlist.forEach(se -> {
-            registerEndpoint(se);
-        });
+        allowlist.forEach(this::registerEndpoint);
 
         this.telemetryRegistry = telemetryRegistry;
         this.channelPool = new SocketChannelPooling(this);
 
-        boss = new NioEventLoopGroup(
+        this.boss = new NioEventLoopGroup(
                 1,
                 new DefaultThreadFactory(
                         String.format("%s-server-el-b", getName())
                 )
         );
-        worker = new NioEventLoopGroup(
+
+        this.worker = new NioEventLoopGroup(
                 new DefaultThreadFactory(
                         String.format("%s-server-el-w", getName())
                 )
         );
     }
 
+    /**
+     * Starts the server socket.
+     *
+     * <p>In cluster mode, the socket will only bind and listen
+     * if the node role is {@link NodeRole#MASTER}.</p>
+     */
     @Override
     public synchronized void start() throws InterruptedException {
         if (running) {
@@ -75,11 +182,13 @@ public class DefaultServerSocket extends AbstractSocket {
             return;
         }
 
-        if (isCluster()) {
-            log.debug("Start socket app id={} as {}", getId(), getRole());
-        } else {
-            log.debug("Start socket app id={}", getId());
-        }
+        log.debug(
+                isCluster()
+                        ? "Start socket app id={} as {}"
+                        : "Start socket app id={}",
+                getId(),
+                getRole()
+        );
 
         running = true;
         startTime = System.currentTimeMillis();
@@ -92,6 +201,12 @@ public class DefaultServerSocket extends AbstractSocket {
         }
     }
 
+    /**
+     * Activates the server socket by binding to the configured port
+     * and accepting incoming connections.
+     *
+     * @throws InterruptedException if bind is interrupted
+     */
     @Override
     public synchronized void activate() throws InterruptedException {
         if (!running) {
@@ -115,9 +230,13 @@ public class DefaultServerSocket extends AbstractSocket {
                         @Override
                         protected void initChannel(io.netty.channel.socket.SocketChannel ch) {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
-                            ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 2, 0, 2));
+                            ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(
+                                    Integer.MAX_VALUE, 0, 2, 0, 2
+                            ));
                             ch.pipeline().addLast(new ByteDecoder());
-                            ch.pipeline().addLast(new ServerInboundHandler(DefaultServerSocket.this, parser, forward));
+                            ch.pipeline().addLast(new ServerInboundHandler(
+                                    DefaultServerSocket.this, parser, forward
+                            ));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
                         }
@@ -127,6 +246,7 @@ public class DefaultServerSocket extends AbstractSocket {
 
             serverChannel = future.channel();
             socketState = SocketState.ACTIVE;
+
             log.info("{} listening on {}", getId(), this.port);
         } catch (Exception e) {
             socketState = SocketState.ERROR;
@@ -135,6 +255,11 @@ public class DefaultServerSocket extends AbstractSocket {
         }
     }
 
+    /**
+     * Puts the server socket into standby mode and stops
+     * accepting new connections.
+     */
+    @Override
     public synchronized void standby() {
         if (socketState == SocketState.STANDBY) {
             return;
@@ -156,16 +281,9 @@ public class DefaultServerSocket extends AbstractSocket {
         }
     }
 
-
-    @Override
-    public SocketType getType() {
-        return type;
-    }
-
-    public Channel getServerChannel() {
-        return serverChannel;
-    }
-
+    /**
+     * Stops the server socket and closes all active connections.
+     */
     @Override
     public synchronized void stop() {
         if (!running) {
@@ -175,7 +293,6 @@ public class DefaultServerSocket extends AbstractSocket {
 
         running = false;
         startTime = 0;
-
         socketState = SocketState.DOWN;
 
         channelPool.closeAll();
@@ -187,18 +304,34 @@ public class DefaultServerSocket extends AbstractSocket {
         log.info("{} stopped", getId());
     }
 
+    /**
+     * Gracefully shuts down the server socket and releases
+     * all Netty resources.
+     *
+     * @throws InterruptedException if shutdown is interrupted
+     */
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
         super.shutdown();
+
         if (boss != null) {
             boss.shutdownGracefully();
         }
-
         if (worker != null) {
             worker.shutdownGracefully();
         }
+
         log.info("{} shutdown", getId());
+    }
+
+    /**
+     * Returns the server channel.
+     *
+     * @return server channel or {@code null} if not active
+     */
+    public Channel getServerChannel() {
+        return serverChannel;
     }
 
     @Override
@@ -207,8 +340,13 @@ public class DefaultServerSocket extends AbstractSocket {
     }
 
     @Override
+    public SocketType getType() {
+        return type;
+    }
+
+    @Override
     public SocketState getState() {
         return socketState;
     }
-
 }
+

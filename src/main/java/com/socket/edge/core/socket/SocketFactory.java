@@ -29,6 +29,9 @@ import com.socket.edge.utils.IsoParser;
  * This class does not manage socket lifecycle (start/stop).
  * It only creates fully configured socket instances.
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public class SocketFactory {
 
