@@ -26,6 +26,9 @@ package com.socket.edge.core.strategy;
  *   <li>Weight values are non-negative</li>
  * </ul>
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public interface WeightedCandidate {
 

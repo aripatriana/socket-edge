@@ -33,7 +33,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  * </p>
  *
- * @param <T> candidate type supporting {@link WeightedCandidate}
+ * @param <T> candidate type supporting {@link WeightedCandidate}'
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public final class RoundRobinStrategy<T extends WeightedCandidate>
         implements SelectionStrategy<T> {

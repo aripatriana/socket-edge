@@ -30,6 +30,9 @@ import java.util.Objects;
  * This class does not manage the lifecycle of sockets or channels directly.
  * It only coordinates transport registration and composition.
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public class TransportRegister {
 

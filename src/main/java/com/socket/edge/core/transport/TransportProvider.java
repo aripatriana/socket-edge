@@ -23,6 +23,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * Internally uses {@link ConcurrentHashMap} to support concurrent access.
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public final class TransportProvider {
 

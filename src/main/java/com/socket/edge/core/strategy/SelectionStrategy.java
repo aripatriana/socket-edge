@@ -24,6 +24,9 @@ import java.util.List;
  * </p>
  *
  * @param <T> candidate type
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public interface SelectionStrategy<T> {
 

@@ -21,6 +21,9 @@ import com.socket.edge.core.MessageContext;
  *   <li>Managed by a lifecycle owner (e.g. {@code TransportProvider})</li>
  * </ul>
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public interface Transport {
 

@@ -23,6 +23,9 @@ import java.util.List;
  * This transport does not own the lifecycle of the underlying socket.
  * Shutdown is therefore a no-op and is expected to be handled externally.
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public final class ServerTransport implements Transport {
 

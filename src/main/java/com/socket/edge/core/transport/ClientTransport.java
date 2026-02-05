@@ -29,6 +29,9 @@ import java.util.Objects;
  * The lifecycle of sockets and channels is managed externally.
  * Therefore, {@link #shutdown()} is a no-op.
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public final class ClientTransport implements Transport {
 

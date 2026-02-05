@@ -18,6 +18,9 @@ import java.util.function.Function;
  * Strategy selection is typically driven by configuration values
  * (e.g. channel configuration).
  * </p>
+ *
+ * @author Ari Patriana
+ * @since 1.0.0
  */
 public class SelectionFactory {
 
