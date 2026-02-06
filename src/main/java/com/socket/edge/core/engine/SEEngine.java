@@ -87,7 +87,7 @@ public class SEEngine extends RouteBuilder {
     /**
      * Correlation store for request–response mapping.
      */
-    private final CorrelationStore correlationStore;
+    private CorrelationStore correlationStore;
 
     /**
      * Transport provider for outbound message delivery.
@@ -132,6 +132,18 @@ public class SEEngine extends RouteBuilder {
      */
     public void bindSocketManager(SocketManager socketManager) {
         this.socketManager = socketManager;
+    }
+
+    /**
+     * Binds the {@link CorrelationStore} after component initialization.
+     *
+     * <p>This binding is required to resolve reply sockets during
+     * outbound message handling.</p>
+     *
+     * @param correlationStore the correlation store instance to bind
+     */
+    public void bindCorrelationStore(CorrelationStore correlationStore) {
+        this.correlationStore = correlationStore;
     }
 
     /**

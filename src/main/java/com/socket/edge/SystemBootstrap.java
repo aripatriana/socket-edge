@@ -9,6 +9,7 @@ import com.socket.edge.constant.ServerMode;
 import com.socket.edge.core.*;
 import com.socket.edge.core.cache.CacheCorrelationStore;
 import com.socket.edge.core.cache.CorrelationStore;
+import com.socket.edge.core.cache.HazelcastCorrelationStore;
 import com.socket.edge.core.cluster.ClusterListener;
 import com.socket.edge.core.cluster.ClusterManager;
 import com.socket.edge.core.cluster.SocketClusterAdapter;
@@ -21,6 +22,7 @@ import com.socket.edge.core.transport.TransportRegister;
 import com.socket.edge.http.NettyHttpServer;
 import com.socket.edge.http.handler.*;
 import com.socket.edge.http.service.AdminHttpService;
+import com.socket.edge.http.service.CorrelationCacheService;
 import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Metadata;
@@ -471,6 +473,14 @@ public class SystemBootstrap {
                         listener
                 );
 
+        /**
+         * CorrelationStore is bound Before cluster manager started.
+         */
+        correlationStore = new HazelcastCorrelationStore(hazelcast.getMap("correlation-store"), cu.getInt("engine.cache.ttl", 30000));
+        SEEngine.bindCorrelationStore(correlationStore);
+
+        log.warn("Override correlation store using hazelcast-backed store for cluster mode");
+
         clusterManager.start();
     }
 
@@ -493,6 +503,7 @@ public class SystemBootstrap {
     private List<HttpServiceHandler> getHttpServiceHandlers() {
         ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadataHolder, channelCfgProcessor);
         AdminHttpService adminHttpService = new AdminHttpService(socketManager);
+        CorrelationCacheService correlationCacheService = new CorrelationCacheService(correlationStore);
         List<HttpServiceHandler> services = List.of(
                 new SocketStatusHandler(telemetryRegistry),
                 new ValidateConfigHandler(reloadCfgService),
@@ -502,7 +513,8 @@ public class SystemBootstrap {
                 new SocketStartHandler(adminHttpService),
                 new SocketStopHandler(adminHttpService),
                 new SocketRestartHandler(adminHttpService),
-                new HealthCheckHandler(adminHttpService)
+                new HealthCheckHandler(adminHttpService),
+                new GetCacheHandler(correlationCacheService)
         );
         return services;
     }
