@@ -7,6 +7,7 @@ JQUEUE_SCRIPT="$BASE_DIR/bin/jqueue.sh"
 JSTATUS_SCRIPT="$BASE_DIR/bin/jstatus.sh"
 JMETRIC_SCRIPT="$BASE_DIR/bin/jmetric.sh"
 JCONTROL_SCRIPT="$BASE_DIR/bin/jcontrol.sh"
+JCACHE_SCRIPT="$BASE_DIR/bin/jcache.sh"
 
 if [ ! -f "$CONF_FILE" ]; then
   echo "ERROR: system.conf not found"
@@ -90,6 +91,10 @@ case "$1" in
     shift
     exec "$JCONTROL_SCRIPT" "$BASE_URL" "$ACTION" "$@"
     ;;
+    cache)
+      shift
+      exec "$JCACHE_SCRIPT" "$BASE_URL" "$@"
+      ;;
   *)
     echo "Usage: se {validate|-t|reload|status|metrics|start|stop|restart}"
     exit 1
