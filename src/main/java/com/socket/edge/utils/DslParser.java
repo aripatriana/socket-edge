@@ -205,16 +205,30 @@ public final class DslParser {
                 int port = listenPort; // inherit
                 int weight = 1;
                 int priority = 0;
+                int maxFails = 1;
+                int failTimeout = 10;
 
                 for (int i = 2; i < p.length - 1; i++) {
-                    if ("weight".equals(p[i])) {
-                        weight = Integer.parseInt(p[i + 1]);
-                    }
-                    else if ("priority".equals(p[i])) {
-                        priority = Integer.parseInt(p[i + 1]);
-                    }
-                    else if ("port".equals(p[i])) {
-                        port = Integer.parseInt(p[i + 1]);
+                    switch (p[i].toLowerCase()) {
+                        case "weight":
+                            weight = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "priority":
+                            priority = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "port":
+                            port = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "maxfails":
+                            maxFails = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "failtimeout":
+                            failTimeout = Integer.parseInt(p[i + 1]);
+                            break;
+                        default:
+                            throw new IllegalStateException(
+                                    "unknown connect option: " + p[i]
+                            );
                     }
                 }
 
@@ -226,7 +240,7 @@ public final class DslParser {
                 }
 
                 pool.add(
-                        new SocketEndpoint(host, port, weight, priority)
+                        new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout * 1000)
                 );
             }
 
@@ -281,29 +295,48 @@ public final class DslParser {
 
                 int weight = 1;     // default
                 int priority = 0;   // default
+                int maxFails = 1;
+                int failTimeout = 10; // seconds
 
                 for (int i = 3; i < p.length - 1; i++) {
-                    if ("weight".equals(p[i])) {
-                        weight = Integer.parseInt(p[i + 1]);
-                    }
-                    else if ("priority".equals(p[i])) {
-                        priority = Integer.parseInt(p[i + 1]);
+                    switch (p[i].toLowerCase()) {
+                        case "weight":
+                            weight = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "priority":
+                            priority = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "maxfails":
+                            maxFails = Integer.parseInt(p[i + 1]);
+                            break;
+                        case "failtimeout":
+                            failTimeout = Integer.parseInt(p[i + 1]);
+                            break;
+                        default:
+                            throw new IllegalStateException(
+                                    "unknown connect option: " + p[i]
+                            );
                     }
                 }
 
                 if (port <= 0 || port > 65535) {
                     throw new IllegalStateException("invalid client connect port: " + port);
                 }
-
                 if (weight <= 0) {
                     throw new IllegalStateException("weight must be > 0");
                 }
                 if (priority < 0) {
                     throw new IllegalStateException("priority must be >= 0");
                 }
+                if (maxFails <= 0) {
+                    throw new IllegalStateException("maxfails must be > 0");
+                }
+                if (failTimeout <= 0) {
+                    throw new IllegalStateException("failtimeout must be > 0");
+                }
 
                 endpoints.add(
-                        new SocketEndpoint(host, port, weight, priority)
+                        new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout * 1000)
                 );
             }
 
@@ -311,20 +344,6 @@ public final class DslParser {
                 strategy = line.split("\\s+")[1].toLowerCase();
             }
         }
-
-//        if (endpoints.size() > 1 && strategy == null) {
-//            throw new IllegalStateException(
-//                    "client.strategy is required when multiple connect endpoints are defined"
-//            );
-//        }
-
-//        Set<String> seen = new HashSet<>();
-//        for (SocketEndpoint e : endpoints) {
-//            String key = e.host() + ":" + e.port();
-//            if (!seen.add(key)) {
-//                throw new IllegalStateException("duplicate client endpoint: " + key);
-//            }
-//        }
 
         // default strategy
         if (strategy == null) {

@@ -4,5 +4,7 @@ public enum SockeEndpointField {
     HOST,
     PORT,
     WEIGHT,
-    PRIORITY
+    PRIORITY,
+    MAX_FAILS,
+    FAIL_TIMEOUT
 }

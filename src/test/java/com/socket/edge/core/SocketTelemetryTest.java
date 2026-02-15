@@ -40,7 +40,7 @@ class SocketTelemetryTest {
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
         when(socket.getId()).thenReturn("sock-1");
         when(socket.getName()).thenReturn("ISO-SOCKET");
         when(socket.getType()).thenReturn(SocketType.CLIENT);

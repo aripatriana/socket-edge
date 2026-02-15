@@ -106,37 +106,44 @@ public final class ClientTransport implements Transport {
      */
     @Override
     public void send(MessageContext ctx) {
-
-        List<SocketChannel> actives = sockets.stream()
-                .map(AbstractSocket::channelPool)
-                .filter(Objects::nonNull)
-                .flatMap(p -> p.activeChannels().stream())
-                .filter(Objects::nonNull)
-                .filter(SocketChannel::isActive)
-                .toList();
-
-        if (actives.isEmpty()) {
-            throw new IllegalStateException("No active client socket");
-        }
-
+        int maxRetry = 3;
         long version = sockets.stream()
                 .map(AbstractSocket::channelPool)
                 .filter(Objects::nonNull)
                 .mapToLong(p -> p.getVersion().get())
                 .sum();
 
-        SocketChannel channel =
-                strategy.next(
-                        new VersionedCandidates<>(version, actives),
-                        ctx
-                );
+        for (int attempt = 1; attempt <= maxRetry; attempt++) {
+            List<SocketChannel> availables = sockets.stream()
+                    .map(AbstractSocket::channelPool)
+                    .filter(Objects::nonNull)
+                    .flatMap(p -> p.availableChannels().stream())
+                    .toList();
 
-        channel.increment();
+            if (availables.isEmpty()) {
+                throw new IllegalStateException("No available socket channel (all unhealthy or cooldown)" );
+            }
 
-        // Expose selected channel for tracing / debugging / callback purpose
-        ctx.addProperty("back_forward_channel", channel);
+            SocketChannel selected =
+                    strategy.next(
+                            new VersionedCandidates<>(version, availables),
+                            ctx
+                    );
 
-        channel.send(ctx.getRawBytes());
+            boolean success = selected.send(ctx.getRawBytes());
+            if (success) {
+                selected.increment();
+                selected.markSuccess();
+
+                // Expose selected channel for tracing / debugging / callback purpose
+                ctx.addProperty("back_forward_channel", selected);
+                return;
+            }
+
+            selected.markFailure(System.currentTimeMillis());
+        }
+
+        throw new IllegalStateException("Send failed after " + maxRetry + " retries");
     }
 
     /**

@@ -50,7 +50,7 @@ class TelemetryRegistryTest {
     @DisplayName("register() should create telemetry on first call")
     void register_firstTime() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry telemetry = telemetryRegistry.register(socket, se);
 
@@ -63,7 +63,7 @@ class TelemetryRegistryTest {
     void register_idempotent() {
         AbstractSocket socket1 = socket("A", "fello", SocketType.SERVER);
         AbstractSocket socket2 = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry t1 = telemetryRegistry.register(socket1, se);
         SocketTelemetry t2 = telemetryRegistry.register(socket2, se);
@@ -79,7 +79,7 @@ class TelemetryRegistryTest {
     @DisplayName("unregister() should remove telemetry and return it")
     void unregister_existing() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry registered = telemetryRegistry.register(socket, se);
         SocketTelemetry removed = telemetryRegistry.unregister(socket, se);
@@ -94,7 +94,7 @@ class TelemetryRegistryTest {
     @DisplayName("unregister() should return null if socket not registered")
     void unregister_missing() {
         AbstractSocket socket = socket("X", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry removed = telemetryRegistry.unregister(socket, se);
 
@@ -109,7 +109,7 @@ class TelemetryRegistryTest {
     @DisplayName("getMetric() should return metric for registered socket")
     void getMetric_existing() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         telemetryRegistry.register(socket, se);
 
@@ -126,7 +126,7 @@ class TelemetryRegistryTest {
     @DisplayName("getQueue() should return metric for registered socket")
     void getQueue_existing() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         telemetryRegistry.register(socket, se);
 
@@ -161,7 +161,7 @@ class TelemetryRegistryTest {
     void getAllMetrics_sorted() {
         AbstractSocket s1 = socket("B", "fello", SocketType.SERVER);
         AbstractSocket s2 = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry t1 = spy(telemetryRegistry.register(s1, se));
         SocketTelemetry t2 = spy(telemetryRegistry.register(s2, se));
@@ -186,7 +186,7 @@ class TelemetryRegistryTest {
     void getAllQueue_sorted() {
         AbstractSocket s1 = socket("B", "fello", SocketType.SERVER);
         AbstractSocket s2 = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry t1 = spy(telemetryRegistry.register(s1, se));
         SocketTelemetry t2 = spy(telemetryRegistry.register(s2, se));
@@ -226,7 +226,7 @@ class TelemetryRegistryTest {
     @DisplayName("getRuntimeState() should return runtime state for registered socket")
     void getRuntimeState_existing() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         when(socket.getState()).thenReturn(SocketState.ACTIVE);
 
@@ -246,7 +246,7 @@ class TelemetryRegistryTest {
         AbstractSocket s1 = socket("C", "fello", SocketType.SERVER);
         AbstractSocket s2 = socket("A", "fello", SocketType.SERVER);
         AbstractSocket s3 = socket("B", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         when(s1.getState()).thenReturn(SocketState.ACTIVE);
         when(s2.getState()).thenReturn(SocketState.ACTIVE);
@@ -288,7 +288,7 @@ class TelemetryRegistryTest {
     void register_concurrent() throws Exception {
         int threads = 20;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         AbstractSocket socket = socket("CONCURRENT", "fello", SocketType.SERVER);
 
@@ -313,7 +313,7 @@ class TelemetryRegistryTest {
     @DisplayName("register() should return same telemetry for same socket id")
     void register_shouldBeIdempotent() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         SocketTelemetry t1 = telemetryRegistry.register(socket, se);
         SocketTelemetry t2 = telemetryRegistry.register(socket, se);
@@ -325,7 +325,7 @@ class TelemetryRegistryTest {
     @DisplayName("register() should register counters and timers")
     void register_shouldRegisterCoreMeters() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         telemetryRegistry.register(socket, se);
 
@@ -339,7 +339,7 @@ class TelemetryRegistryTest {
     @DisplayName("register() should register all gauges")
     void register_shouldRegisterGauges() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         telemetryRegistry.register(socket, se);
 
@@ -358,7 +358,7 @@ class TelemetryRegistryTest {
     @DisplayName("register() should attach correct tags")
     void register_shouldAttachCorrectTags() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         telemetryRegistry.register(socket, se);
 
@@ -374,7 +374,7 @@ class TelemetryRegistryTest {
     @DisplayName("register() should not duplicate meters")
     void register_shouldNotDuplicateMeters() {
         AbstractSocket socket = socket("A", "fello", SocketType.SERVER);
-        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1);
+        SocketEndpoint se = new SocketEndpoint("127.0.0.1", 7000, 100, 1, 1, 10);
 
         telemetryRegistry.register(socket, se);
         int meterCountAfterFirst = meterRegistry.getMeters().size();

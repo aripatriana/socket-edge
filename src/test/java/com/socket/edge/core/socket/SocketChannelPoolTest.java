@@ -22,7 +22,7 @@ class SocketChannelPoolTest {
 
     @BeforeEach
     void setup() {
-        endpoint = new SocketEndpoint("127.0.0.1", 9000, 1, 1);
+        endpoint = new SocketEndpoint("127.0.0.1", 9000, 1, 1, 1, 10);
         AbstractSocket socket = mock(AbstractSocket.class);
         when(socket.resolveEndpoint(endpoint.id())).thenReturn(endpoint);
         when(socket.resolveEndpoint(endpoint.id().host(), endpoint.id().port())).thenReturn(endpoint);

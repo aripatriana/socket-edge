@@ -69,28 +69,37 @@ public final class ServerTransport implements Transport {
      */
     @Override
     public void send(MessageContext ctx) {
-        List<SocketChannel> actives =
-                socket.channelPool().activeChannels();
+        int maxRetry = 3;
+        long version = socket.channelPool().getVersion().get();
 
-        if (actives.isEmpty()) {
-            throw new IllegalStateException(
-                    "No active socket channel"
+        for (int attempt = 1; attempt <= maxRetry; attempt++) {
+            List<SocketChannel> availables = socket.channelPool().availableChannels();
+
+            if (availables.isEmpty()) {
+                throw new IllegalStateException(
+                        "No available socket channel (all unhealthy or cooldown)"
+                );
+            }
+
+            SocketChannel selected = strategy.next(
+                    new VersionedCandidates<>(version, availables),
+                    ctx
             );
+
+            boolean success = selected.send(ctx.getRawBytes());
+            if (success) {
+                selected.increment();
+                selected.markSuccess();
+
+                // Expose selected channel for tracing / debugging / callback purpose
+                ctx.addProperty("back_forward_channel", selected);
+                return;
+            }
+
+            selected.markFailure(System.currentTimeMillis());
         }
 
-        long version = socket.channelPool().getVersion().get();
-        SocketChannel channel =
-                strategy.next(
-                        new VersionedCandidates<>(version, actives),
-                        ctx
-                );
-
-        channel.increment();
-
-        // Expose selected channel for tracing / debugging / callback purpose
-        ctx.addProperty("back_forward_channel", channel);
-
-        channel.send(ctx.getRawBytes());
+        throw new IllegalStateException("Send failed after " + maxRetry + " retries");
     }
 
     /**

@@ -73,6 +73,12 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
      */
     private volatile SocketTelemetry socketTelemetry;
 
+    private final AtomicInteger failCount = new AtomicInteger(0);
+    private volatile long unhealthyUntil = 0L;
+
+    private final int maxFails;
+    private final int failTimeout;
+
     /**
      * Creates a new socket channel wrapper.
      *
@@ -92,6 +98,8 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
         this.channelId = channel.id();
         this.socketEndpoint = socketEndpoint;
         this.socketTelemetry = socketTelemetry;
+        this.maxFails = socketEndpoint.maxfails();
+        this.failTimeout =socketEndpoint.failTimeout();
     }
 
     /**
@@ -163,12 +171,25 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
             return false;
         }
 
-        if (log.isInfoEnabled()) {
-            log.info("{} send {}", socketId, new String(bytes));
-        }
+        try {
+            ChannelFuture future = ch.writeAndFlush(Unpooled.wrappedBuffer(bytes));
 
-        ch.writeAndFlush(Unpooled.wrappedBuffer(bytes));
-        return true;
+            future.awaitUninterruptibly();
+
+            if (!future.isSuccess()) {
+                log.warn("{} send failed", socketId, future.cause());
+                return false;
+            }
+
+            if (log.isInfoEnabled()) {
+                log.info("{} send {}", socketId, new String(bytes));
+            }
+
+            return true;
+        } catch (Exception e) {
+            log.error("{} send exception", socketId, e);
+            return false;
+        }
     }
 
     /**
@@ -204,6 +225,24 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
      */
     public boolean isActive() {
         return channel.isActive();
+    }
+
+    public boolean isAvailable(long now) {
+        return now >= unhealthyUntil && channel.isActive();
+    }
+
+    public void markSuccess() {
+        failCount.set(0);
+        unhealthyUntil = 0L;
+    }
+
+    public void markFailure(long now) {
+        int fails = failCount.incrementAndGet();
+
+        if (fails >= maxFails) {
+            unhealthyUntil = now + failTimeout;
+            failCount.set(0); // reset counter after mark unhealthy
+        }
     }
 
     /**

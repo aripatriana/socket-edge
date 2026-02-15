@@ -41,7 +41,7 @@ class SocketManagerTest {
     void setUp() {
         socketManager = new SocketManager(socketFactory, transportRegister);
 
-        endpoint = new SocketEndpoint("localhost", 9000, 1, 1);
+        endpoint = new SocketEndpoint("localhost", 9000, 1, 1, 1, 10);
 
         cfg = new ChannelCfg(
                 "CH1",

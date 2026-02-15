@@ -13,7 +13,9 @@ public record SocketEndpoint(
         String host,
         int port,
         int weight,
-        int priority
+        int priority,
+        int maxfails,
+        int failTimeout
 ) implements WeightedCandidate {
     @Override
     public int getWeight() {
@@ -39,6 +41,14 @@ public record SocketEndpoint(
         CommonUtil.diff(changes,
                 SockeEndpointField.PRIORITY,
                 oldOne.priority(), newOne.priority(),
+                ChangeImpact.LIVE);
+        CommonUtil.diff(changes,
+                SockeEndpointField.MAX_FAILS,
+                oldOne.maxfails(), newOne.maxfails(),
+                ChangeImpact.LIVE);
+        CommonUtil.diff(changes,
+                SockeEndpointField.FAIL_TIMEOUT,
+                oldOne.failTimeout(), newOne.failTimeout(),
                 ChangeImpact.LIVE);
         return new SocketEndpointDiff(oldOne, newOne, changes);
     }

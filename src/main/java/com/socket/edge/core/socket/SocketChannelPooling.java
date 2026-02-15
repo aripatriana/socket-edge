@@ -214,6 +214,12 @@ public class SocketChannelPooling {
                 .toList();
     }
 
+    public List<SocketChannel> availableChannels() {
+        return activeChannels.values().stream()
+                .filter(sc -> sc.isAvailable(System.currentTimeMillis()))
+                .toList();
+    }
+
     /**
      * Returns all channels (active and inactive).
      *
@@ -260,4 +266,5 @@ public class SocketChannelPooling {
         }
         return EndpointKey.from(se);
     }
+
 }

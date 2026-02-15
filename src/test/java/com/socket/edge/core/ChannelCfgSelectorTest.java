@@ -29,7 +29,7 @@ class ChannelCfgSelectorTest {
                 "OUTBOUND",
                 "PROFILE_A",
                 "ROUND_ROBIN",
-                endpoint("10.10.10.1", 9000, 5, 1)
+                endpoint("10.10.10.1", 9000, 5, 1, 1 , 10)
         );
 
         ChannelCfg result = selector.select(
@@ -50,7 +50,7 @@ class ChannelCfgSelectorTest {
                 "SOME_RANDOM_TYPE",
                 "SOME_PROFILE",
                 "WEIGHTED",
-                endpoint("10.10.10.1", 9000, 10, 9)
+                endpoint("10.10.10.1", 9000, 10, 9, 1 , 10)
         );
 
         ChannelCfg result = selector.select(
@@ -79,7 +79,7 @@ class ChannelCfgSelectorTest {
                 "0.0.0.0",
                 8080,
                 "ROUND_ROBIN",
-                endpoint("192.168.1.10", 0, 1, 1)
+                endpoint("192.168.1.10", 0, 1, 1,1 , 10)
         );
 
         ChannelCfg result = selector.select(
@@ -106,7 +106,7 @@ class ChannelCfgSelectorTest {
                 "127.0.0.1",
                 8080,
                 "WEIGHTED",
-                endpoint("192.168.1.10", 0, 1, 1)
+                endpoint("192.168.1.10", 0, 1, 1, 1, 10)
         );
 
         assertThrows(
@@ -130,7 +130,7 @@ class ChannelCfgSelectorTest {
                 "OUTBOUND",
                 "PROFILE_A",
                 "ROUND_ROBIN",
-                endpoint("10.10.10.1", 9000, 1, 1)
+                endpoint("10.10.10.1", 9000, 1, 1, 1, 10)
         );
 
         ChannelCfg second = clientCfg(
@@ -138,7 +138,7 @@ class ChannelCfgSelectorTest {
                 "OUTBOUND",
                 "PROFILE_B",
                 "WEIGHTED",
-                endpoint("10.10.10.1", 9000, 99, 9)
+                endpoint("10.10.10.1", 9000, 99, 9, 1, 10)
         );
 
         ChannelCfg result = selector.select(
@@ -201,9 +201,11 @@ class ChannelCfgSelectorTest {
             String host,
             int port,
             int weight,
-            int priority
+            int priority,
+            int maxFails,
+            int failTimeout
     ) {
-        return new SocketEndpoint(host, port, weight, priority);
+        return new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout);
     }
 
     private static InetSocketAddress local(int port) {
