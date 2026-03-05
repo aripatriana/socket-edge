@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -490,7 +491,8 @@ public class SystemBootstrap {
     public void handleHttpServer() throws Exception {
         log.info("Start httpserver..");
 
-        List<HttpServiceHandler> services = getHttpServiceHandlers();
+        List<HttpServiceHandler> services = new ArrayList<>();
+        addHttpServiceHandlers(services);
         httpServer = new NettyHttpServer(
                         sc.getString("server.name"),
                         sc.getInt("server.port"),
@@ -500,23 +502,12 @@ public class SystemBootstrap {
     }
 
 
-    private List<HttpServiceHandler> getHttpServiceHandlers() {
+    private void addHttpServiceHandlers(List<HttpServiceHandler> services) {
         ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadataHolder, channelCfgProcessor);
         AdminHttpService adminHttpService = new AdminHttpService(socketManager);
         CorrelationCacheService correlationCacheService = new CorrelationCacheService(correlationStore);
-        List<HttpServiceHandler> services = List.of(
-                new SocketStatusHandler(telemetryRegistry),
-                new ValidateConfigHandler(reloadCfgService),
-                new ReloadConfigHandler(reloadCfgService),
-                new MetricsServiceHandle(telemetryRegistry),
-                new QueueServiceHandle(telemetryRegistry),
-                new SocketStartHandler(adminHttpService),
-                new SocketStopHandler(adminHttpService),
-                new SocketRestartHandler(adminHttpService),
-                new HealthCheckHandler(adminHttpService),
-                new GetCacheHandler(correlationCacheService)
-        );
-        return services;
+        new CommonServiceHandler(telemetryRegistry, adminHttpService, correlationCacheService, services);
+        new ConfigServiceHandler(reloadCfgService, services);
     }
 
     /**

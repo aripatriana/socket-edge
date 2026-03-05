@@ -199,15 +199,46 @@ public class SocketManager {
 
     public void startByName(String name) {
         Objects.requireNonNull(name, "Required name");
-        sockets.values().stream()
-                .filter(s -> name.equals(s.getName()))
-                .forEach(this::start);
+
+        boolean found = false;
+
+        List<AbstractSocket> clients = socketClients.get(name);
+        if (clients != null && clients.size() > 0) {
+            clients.forEach(this::start);
+            found = true;
+        }
+
+        AbstractSocket server = socketServers.get(name);
+        if (server != null) {
+            start(server);
+            found = true;
+        }
+
+        if (!found) {
+            log.warn("No socket client/server found with name: {}", name);
+            throw new IllegalArgumentException("No socket client/server found with name: " + name);
+        }
     }
 
     public void stopByName(String name) {
-        sockets.values().stream()
-                .filter(s -> name.equals(s.getName()))
-                .forEach(this::stop);
+        Objects.requireNonNull(name, "Required name");
+        boolean found = false;
+        List<AbstractSocket> clients = socketClients.get(name);
+        if (clients != null && clients.size() > 0) {
+            clients.forEach(this::stop);
+            found = true;
+        }
+
+        AbstractSocket server = socketServers.get(name);
+        if (server != null) {
+            stop(server);
+            found = true;
+        }
+
+        if (!found) {
+            log.warn("No socket client/server found with name: {}", name);
+            throw new IllegalArgumentException("No socket client/server found with name: " + name);
+        }
     }
 
     public void destroyServerSocket(ChannelCfg cfg) {
@@ -288,7 +319,8 @@ public class SocketManager {
     AbstractSocket requireSocket(String id) {
         AbstractSocket socket = sockets.get(id);
         if (socket == null) {
-            throw new IllegalArgumentException("Socket not found id=" + id);
+            log.warn("No socket client/server found with id: {}", id);
+            throw new IllegalArgumentException("No socket client/server found with id: " + id);
         }
         return socket;
     }

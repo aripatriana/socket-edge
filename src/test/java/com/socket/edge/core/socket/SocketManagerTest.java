@@ -115,6 +115,17 @@ class SocketManagerTest {
     }
 
     @Test
+    void stopByName_shouldThrowExceptionWhenNameNotFound() {
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> socketManager.stopByName("UNKNOWN")
+        );
+
+        assertEquals("No socket client/server found with name: UNKNOWN", ex.getMessage());
+    }
+
+    @Test
     void start_whenInterrupted_shouldWrapException() throws Exception {
         when(clientSocket.getId()).thenReturn("X");
         doThrow(new InterruptedException("boom"))
@@ -168,20 +179,30 @@ class SocketManagerTest {
     @Test
     void startByName_shouldStartAllMatchingSockets() throws Exception {
         when(serverSocket.getId()).thenReturn(CommonUtil.serverId("CH1", 7000));
-        when(clientSocket.getId()).thenReturn(CommonUtil.clientId("CH1", "localhost", 9000));
+        when(clientSocket.getId()).thenReturn(CommonUtil.clientId("CH2", "localhost", 9000));
 
-        when(serverSocket.getName()).thenReturn("CH1");
-        when(clientSocket.getName()).thenReturn("CH2");
+//        when(serverSocket.getName()).thenReturn("CH1");
+//        when(clientSocket.getName()).thenReturn("CH2");
 
         when(socketFactory.createServer(cfg)).thenReturn(serverSocket);
         when(socketFactory.createClient(cfg, endpoint)).thenReturn(clientSocket);
 
         socketManager.createSocket(cfg);
         socketManager.startByName("CH1");
-        socketManager.startByName("CH2");
 
         verify(serverSocket).start();
         verify(clientSocket).start();
+    }
+
+    @Test
+    void startByName_shouldThrowExceptionWhenNameNotFound() {
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> socketManager.startByName("UNKNOWN")
+        );
+
+        assertEquals("No socket client/server found with name: UNKNOWN", ex.getMessage());
     }
 
     /* ===============================
@@ -201,6 +222,17 @@ class SocketManagerTest {
 
         verify(serverSocket).stop();
         verify(serverSocket).start();
+    }
+
+    @Test
+    void restartByName_shouldThrowExceptionWhenNameNotFound() {
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> socketManager.restartByName("UNKNOWN")
+        );
+
+        assertEquals("No socket client/server found with name: UNKNOWN", ex.getMessage());
     }
 
     /* ===============================
