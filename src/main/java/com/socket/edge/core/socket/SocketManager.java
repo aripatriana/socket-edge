@@ -1,5 +1,6 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.transport.TransportRegister;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.SocketEndpoint;
@@ -9,12 +10,15 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class SocketManager {
 
     private static final Logger log = LoggerFactory.getLogger(SocketManager.class);
 
     private final Map<String, AbstractSocket> sockets = new ConcurrentHashMap<>();
+    private final Map<String, AbstractSocket> socketServers = new ConcurrentHashMap<>();
+    private final Map<String, List<AbstractSocket>> socketClients = new ConcurrentHashMap<>();
     private final SocketFactory socketFactory;
     private final TransportRegister transportRegister;
 
@@ -44,6 +48,7 @@ public class SocketManager {
         AbstractSocket server = socketFactory.createServer(cfg);
         AbstractSocket existing = sockets.putIfAbsent(server.getId(), server);
         if (existing == null) {
+            socketServers.putIfAbsent(cfg.name(), server);
             transportRegister.registerServerTransport(cfg, server);
             log.debug("Server socket registered id={}", server.getId());
         } else {
@@ -66,6 +71,9 @@ public class SocketManager {
 
             if (existing == null) {
                 registered.add(client);
+                socketClients
+                        .computeIfAbsent(cfg.name(), k -> new CopyOnWriteArrayList<>())
+                        .add(client);
                 log.debug("Client socket registered id={}", client.getId());
             } else {
                 log.warn("Client socket already exists id={}", client.getId());
@@ -87,6 +95,9 @@ public class SocketManager {
         AbstractSocket client = socketFactory.createClient(cfg, se);
         AbstractSocket existing = sockets.putIfAbsent(client.getId(), client);
         if (existing == null) {
+            socketClients
+                    .computeIfAbsent(cfg.name(), k -> new CopyOnWriteArrayList<>())
+                    .add(client);
             transportRegister.registerClientTransport(cfg, client);
             log.debug("Client socket registered id={}", client.getId());
         } else {
@@ -104,32 +115,20 @@ public class SocketManager {
         return sockets.get(id);
     }
 
+    public AbstractSocket getSocketServerByName(String name) {
+        return socketServers.get(name);
+    }
+
+    public List<AbstractSocket> getSocketClientByName(String name) {
+        return socketClients.get(name);
+    }
+
     public void start(AbstractSocket socket) {
         Objects.requireNonNull(socket, "Object socket null");
         try {
             socket.start();
         } catch (InterruptedException e) {
             log.error("Start failed id={}", socket.getId(), e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void activate(AbstractSocket socket) {
-        Objects.requireNonNull(socket, "Object socket null");
-        try {
-            socket.activate();
-        } catch (InterruptedException e) {
-            log.error("Activate failed id={}", socket.getId(), e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void standby(AbstractSocket socket) {
-        Objects.requireNonNull(socket, "Object socket null");
-        try {
-            socket.standby();
-        } catch (InterruptedException e) {
-            log.error("Stanby failed id={}", socket.getId(), e);
             throw new RuntimeException(e);
         }
     }
@@ -145,6 +144,16 @@ public class SocketManager {
             socket.stop();
         } catch (InterruptedException e) {
             log.error("Stop failed id={}", socket.getId(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void restart(AbstractSocket socket) {
+        Objects.requireNonNull(socket, "Object socket null");
+        try {
+            socket.restart();
+        } catch (InterruptedException e) {
+            log.error("Restart failed id={}", socket.getId(), e);
             throw new RuntimeException(e);
         }
     }
@@ -254,6 +263,18 @@ public class SocketManager {
     private AbstractSocket removeAndShutdown(String id) {
         AbstractSocket socket = sockets.remove(id);
         if (socket != null) {
+            if (socket.getType().equals(SocketType.SERVER)) {
+                socketServers.remove(socket.getName());
+            } else {
+                List<AbstractSocket> clients = socketClients.get(socket.getName());
+                if (clients != null) {
+                    clients.removeIf(c -> c.getId().equals(id));
+                    if (clients.isEmpty()) {
+                        socketClients.remove(socket.getName());
+                    }
+                }
+            }
+
             try {
                 socket.shutdown();
             } catch (Exception e) {

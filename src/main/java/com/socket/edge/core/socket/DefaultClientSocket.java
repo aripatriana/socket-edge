@@ -1,6 +1,7 @@
 package com.socket.edge.core.socket;
 
 import com.socket.edge.constant.NodeRole;
+import com.socket.edge.core.CompletionCallback;
 import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.model.SocketEndpoint;
@@ -135,6 +136,8 @@ public class DefaultClientSocket extends AbstractSocket {
      */
     private TelemetryRegistry telemetryRegistry;
 
+    private SocketManager sm;
+
     /**
      * Creates a new client socket.
      *
@@ -149,6 +152,7 @@ public class DefaultClientSocket extends AbstractSocket {
             boolean cluster,
             String name,
             SocketEndpoint se,
+            SocketManager sm,
             TelemetryRegistry telemetryRegistry,
             IsoParser parser,
             MessageContextProcess forward
@@ -169,6 +173,7 @@ public class DefaultClientSocket extends AbstractSocket {
 
         registerEndpoint(se);
 
+        this.sm = sm;
         this.telemetryRegistry = telemetryRegistry;
         this.channelPool = new SocketChannelPooling(this);
 
@@ -180,6 +185,26 @@ public class DefaultClientSocket extends AbstractSocket {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r ->
                 new Thread(r, String.format("%s-client", name))
         );
+
+        bootstrap = new Bootstrap()
+                .group(group)
+                .channel(NioSocketChannel.class)
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .handler(new ChannelInitializer<>() {
+                    @Override
+                    protected void initChannel(Channel ch) {
+                        ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
+                        ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(
+                                Integer.MAX_VALUE, 0, 2, 0, 2
+                        ));
+                        ch.pipeline().addLast(new ByteDecoder());
+                        ch.pipeline().addLast(new ClientInboundHandler(
+                                sm,DefaultClientSocket.this, parser, forward
+                        ));
+                        ch.pipeline().addLast(new ByteEncoder());
+                        ch.pipeline().addLast(new LengthFieldPrepender(2));
+                    }
+                });
     }
 
     /**
@@ -196,85 +221,24 @@ public class DefaultClientSocket extends AbstractSocket {
             return;
         }
 
-        log.debug(
-                isCluster()
-                        ? "Start client socket app id={} as {}"
-                        : "Start client socket app id={}",
-                getId(),
-                getRole()
-        );
-
-        bootstrap = new Bootstrap()
-                .group(group)
-                .channel(NioSocketChannel.class)
-                .option(ChannelOption.SO_KEEPALIVE, true)
-                .handler(new ChannelInitializer<>() {
-                    @Override
-                    protected void initChannel(Channel ch) {
-                        ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
-                        ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(
-                                Integer.MAX_VALUE, 0, 2, 0, 2
-                        ));
-                        ch.pipeline().addLast(new ByteDecoder());
-                        ch.pipeline().addLast(new ClientInboundHandler(
-                                DefaultClientSocket.this, parser, forward
-                        ));
-                        ch.pipeline().addLast(new ByteEncoder());
-                        ch.pipeline().addLast(new LengthFieldPrepender(2));
-                    }
-                });
-
-        running = true;
-        startTime = System.currentTimeMillis();
-
         if (!isCluster() || getRole() == NodeRole.MASTER) {
-            activate();
+
+
+            log.debug(
+                    isCluster()
+                            ? "Start client socket app id={} as {}"
+                            : "Start client socket app id={}",
+                    getId(),
+                    getRole()
+            );
+
+            running = true;
+            startTime = System.currentTimeMillis();
+
+            socketState = SocketState.WAIT;
         } else {
             socketState = SocketState.STANDBY;
             log.info("{} started in standby mode", getId());
-        }
-    }
-
-    /**
-     * Activates the socket and initiates connection attempts.
-     */
-    @Override
-    public synchronized void activate() {
-        if (!running || socketState == SocketState.ACTIVE) {
-            return;
-        }
-
-        socketState = SocketState.ACTIVE;
-        retryCount = 0;
-        reconnecting.set(false);
-
-        connect();
-    }
-
-    /**
-     * Puts the socket into standby mode and closes all active channels.
-     */
-    @Override
-    public synchronized void standby() {
-        if (socketState == SocketState.STANDBY) {
-            return;
-        }
-
-        try {
-            socketState = SocketState.STANDBY;
-            reconnecting.set(false);
-            retryCount = 0;
-
-            channelPool.closeAll();
-            if (channel != null) {
-                channel.close();
-                channel = null;
-            }
-
-            log.info("{} standby", getId());
-        } catch (Exception e) {
-            socketState = SocketState.ERROR;
-            log.error("Failed to demote socket {}", getId(), e);
         }
     }
 
@@ -288,18 +252,24 @@ public class DefaultClientSocket extends AbstractSocket {
             return;
         }
 
-        running = false;
-        startTime = 0;
-        reconnecting.set(false);
-        retryCount = 0;
+        try {
+            running = false;
+            startTime = 0;
+            reconnecting.set(false);
+            retryCount = 0;
 
-        channelPool.closeAll();
-        if (channel != null) {
-            channel.close();
-            channel = null;
+            channelPool.closeAll();
+            if (channel != null) {
+                channel.close();
+                channel = null;
+            }
+
+            changeState(SocketState.DOWN);
+            log.info("{} stopped", getId());
+        } catch (Exception e) {
+            changeState(SocketState.ERROR);
+            log.error("Failed to demote socket {}", getId(), e);
         }
-
-        log.info("{} stopped", getId());
     }
 
     /**
@@ -323,56 +293,80 @@ public class DefaultClientSocket extends AbstractSocket {
     /**
      * Attempts to establish a connection to the remote endpoint.
      */
-    private synchronized void connect() {
-        if (!running) return;
-        if (isCluster() && getRole() != NodeRole.MASTER) return;
-        if (group.isShutdown() || group.isTerminated()) return;
+    public synchronized void connect(CompletionCallback callback) {
+        if (!running) {
+            log.warn("Skip connect: component is not running");
+            return;
+        }
 
+        if (getState() == SocketState.ACTIVE) {
+            log.warn("Skip connect: socket already ACTIVE");
+            return;
+        }
+
+        if (isCluster() && getRole() != NodeRole.MASTER) {
+            log.warn("Skip connect: node role is {}, only MASTER can start", getRole());
+            return;
+        }
+
+        if (group.isShutdown() || group.isTerminated()) {
+            log.warn(
+                    "Skip connect: event loop group is {}",
+                    group.isShutdown() ? "SHUTDOWN" : "TERMINATED"
+            );
+            return;
+        }
+
+        retryCount = 0;
+        reconnecting.set(false);
+
+        connectForChannel(callback);
+    }
+
+    public void connectForChannel(CompletionCallback<DefaultClientSocket> callback) {
         bootstrap.connect(host, port)
                 .addListener((ChannelFutureListener) future -> {
                     reconnecting.set(false);
 
                     if (!future.isSuccess()) {
-                        scheduleReconnect();
+                        callback.onFailure(this);
                         return;
                     }
 
                     log.info("{} connected", getId());
 
                     Channel ch = future.channel();
+
                     this.channel = ch;
                     retryCount = 0;
 
-                    ch.closeFuture().addListener(cf -> onDisconnect(ch));
+                    changeState(SocketState.ACTIVE);
+                    callback.onComplete(this);
                 });
     }
 
-    /**
-     * Handles channel disconnection.
-     *
-     * @param disconnected disconnected channel
-     */
-    public synchronized void onDisconnect(Channel disconnected) {
-        if (this.channel != disconnected) {
-            return;
-        }
-
-        this.channel = null;
-        channelPool.removeChannel(disconnected);
-
-        log.info("{} disconnected", getId());
-
-        if (!running) return;
-        scheduleReconnect();
-    }
 
     /**
      * Schedules a reconnect attempt using exponential backoff.
      */
-    private synchronized void scheduleReconnect() {
-        if (!running) return;
-        if (isCluster() && getRole() != NodeRole.MASTER) return;
-        if (!reconnecting.compareAndSet(false, true)) return;
+    public synchronized void scheduleReconnect() {
+        if (!running) {
+            log.warn("Skip reconnect scheduling: component is not running");
+            return;
+        }
+
+        if (isCluster() && getRole() != NodeRole.MASTER) {
+            log.warn(
+                    "Skip reconnect scheduling: node role is {}, only MASTER can schedule reconnect",
+                    getRole()
+            );
+            return;
+        }
+
+        if (!reconnecting.compareAndSet(false, true)) {
+            log.warn("Skip reconnect scheduling: reconnect is already in progress");
+            return;
+        }
 
         int delaySeconds = Math.min(
                 MAX_BACKOFF_SECONDS,
@@ -386,7 +380,18 @@ public class DefaultClientSocket extends AbstractSocket {
                 getId(), host, port, delaySeconds, retryCount
         );
 
-        scheduler.schedule(this::connect, delaySeconds, TimeUnit.SECONDS);
+        scheduler.schedule(() -> connect(new CompletionCallback<DefaultClientSocket>() {
+                @Override
+                public void onComplete(DefaultClientSocket client) {
+                    log.info("{} reconnect successful", getId());
+                }
+
+                @Override
+                public void onFailure(DefaultClientSocket client) {
+                    log.warn("{} reconnect failed", getId());
+                    scheduleReconnect();
+                }
+        }), delaySeconds, TimeUnit.SECONDS);
     }
 
     @Override
@@ -402,6 +407,10 @@ public class DefaultClientSocket extends AbstractSocket {
     @Override
     public SocketChannelPooling channelPool() {
         return channelPool;
+    }
+
+    public void changeState(SocketState socketState) {
+        this.socketState = socketState;
     }
 }
 

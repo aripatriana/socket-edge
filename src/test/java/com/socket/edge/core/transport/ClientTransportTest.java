@@ -39,7 +39,9 @@ class ClientTransportTest {
         byte[] payload = new byte[]{0x01, 0x02};
 
         when(clientSocket.channelPool()).thenReturn(channelPool);
+        when(channel.send(any())).thenReturn(true);
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
+        when(channelPool.availableChannels()).thenReturn(List.of(channel));
         when(channelPool.getVersion()).thenReturn(new AtomicLong(0));
         when(channel.isActive()).thenReturn(true);
         when(strategy.next(any(), eq(ctx))).thenReturn(channel);
@@ -60,6 +62,8 @@ class ClientTransportTest {
     void send_shouldThrowException_whenNoActiveChannels() {
         when(clientSocket.channelPool()).thenReturn(channelPool);
         when(channelPool.activeChannels()).thenReturn(List.of());
+        when(channelPool.availableChannels()).thenReturn(List.of());
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(0));
 
         ClientTransport transport =
                 new ClientTransport(List.of(clientSocket), strategy);
@@ -69,7 +73,7 @@ class ClientTransportTest {
                 () -> transport.send(ctx)
         );
 
-        assertEquals("No active client socket", ex.getMessage());
+        assertEquals("No available socket channel (all unhealthy or cooldown)", ex.getMessage());
         verifyNoInteractions(strategy);
     }
 
@@ -89,6 +93,7 @@ class ClientTransportTest {
     @Test
     void send_shouldIgnoreInactiveChannels() {
         when(clientSocket.channelPool()).thenReturn(channelPool);
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(0));
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
         when(channel.isActive()).thenReturn(false);
 
@@ -109,10 +114,12 @@ class ClientTransportTest {
         SocketChannel inactive = mock(SocketChannel.class);
 
         when(active.isActive()).thenReturn(true);
+        when(active.send(any())).thenReturn(true);
         when(inactive.isActive()).thenReturn(false);
 
         when(clientSocket.channelPool()).thenReturn(channelPool);
         when(channelPool.activeChannels()).thenReturn(List.of(active, inactive));
+        when(channelPool.availableChannels()).thenReturn(List.of(active));
         when(channelPool.getVersion()).thenReturn(new AtomicLong(0));
         when(strategy.next(any(), eq(ctx))).thenReturn(active);
         when(ctx.getRawBytes()).thenReturn(new byte[]{0x01});

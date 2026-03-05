@@ -2,6 +2,8 @@ package com.socket.edge.core.cluster;
 
 import com.socket.edge.constant.NodeRole;
 import com.socket.edge.constant.SocketState;
+import com.socket.edge.core.socket.AbstractSocket;
+import com.socket.edge.core.socket.DefaultClientSocket;
 import com.socket.edge.core.socket.SocketManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,18 +98,15 @@ public class SocketClusterAdapter implements ClusterListener {
                         "{} is already ACTIVE, no action on master transition",
                         socket.getId()
                 );
-            } else if (socket.getState() == SocketState.DOWN) {
+            } else if (socket.getState() == SocketState.DOWN
+                    || socket.getState() == SocketState.STANDBY
+                    || socket.getState() == SocketState.ERROR) {
                 log.info(
-                        "{} transition to ACTIVE on master role",
-                        socket.getId()
+                        "{} transition to {} on master role",
+                        socket.getId(),
+                        socket instanceof DefaultClientSocket? "WAIT" : "LISTEN"
                 );
                 socketManager.start(socket);
-            } else if (socket.getState() == SocketState.STANDBY) {
-                log.info(
-                        "{} transition to ACTIVE on master role",
-                        socket.getId()
-                );
-                socketManager.activate(socket);
             } else {
                 log.warn(
                         "{} in state {}, cannot transition to ACTIVE on master role",
@@ -144,7 +143,7 @@ public class SocketClusterAdapter implements ClusterListener {
                         "{} transition to STANDBY on slave role",
                         socket.getId()
                 );
-                socketManager.standby(socket);
+                socketManager.restart(socket);
             } else {
                 log.warn(
                         "{} in state {}, cannot transition to STANDBY on slave role",

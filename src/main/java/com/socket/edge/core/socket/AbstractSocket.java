@@ -179,23 +179,18 @@ public abstract class AbstractSocket {
     public abstract void stop() throws InterruptedException;
 
     /**
-     * Activates the socket for traffic handling.
+     * Restarts the component by stopping it first and then starting it again.
      *
-     * <p>Typically called when node becomes MASTER.</p>
+     * <p>This default implementation invokes {@link #stop()} followed by
+     * {@link #start()} in sequence.</p>
      *
-     * @throws InterruptedException if activation is interrupted
+     * @throws InterruptedException if the current thread is interrupted
+     *                              while stopping or starting the component
      */
-    public abstract void activate() throws InterruptedException;
-
-    /**
-     * Puts the socket into standby mode.
-     *
-     * <p>Typically called when node becomes SLAVE.</p>
-     *
-     * @throws InterruptedException if standby transition is interrupted
-     */
-    public abstract void standby() throws InterruptedException;
-
+    public void restart() throws InterruptedException {
+        stop();
+        start();
+    }
     /**
      * Returns the current socket state.
      *

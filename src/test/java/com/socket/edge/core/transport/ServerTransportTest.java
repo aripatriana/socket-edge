@@ -41,10 +41,12 @@ class ServerTransportTest {
     void send_shouldSendMessage_whenActiveChannelExists() {
         byte[] payload = new byte[]{0x10, 0x20};
 
+        when(channelPool.availableChannels()).thenReturn(List.of(channel));
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
         when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
         when(strategy.next(any(), eq(ctx))).thenReturn(channel);
         when(ctx.getRawBytes()).thenReturn(payload);
+        when(channel.send(any())).thenReturn(true);
 
         ServerTransport transport =
                 new ServerTransport(serverSocket, strategy);
@@ -60,6 +62,8 @@ class ServerTransportTest {
     @Test
     void send_shouldThrowException_whenNoActiveChannels() {
         when(channelPool.activeChannels()).thenReturn(List.of());
+        when(channelPool.availableChannels()).thenReturn(List.of());
+        when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
 
         ServerTransport transport =
                 new ServerTransport(serverSocket, strategy);
@@ -69,7 +73,7 @@ class ServerTransportTest {
                 () -> transport.send(ctx)
         );
 
-        assertEquals("No active socket channel", ex.getMessage());
+        assertEquals("No available socket channel (all unhealthy or cooldown)", ex.getMessage());
         verifyNoInteractions(strategy);
     }
 
@@ -77,10 +81,14 @@ class ServerTransportTest {
     void send_shouldPassAllActiveChannelsToStrategy() {
         SocketChannel ch1 = mock(SocketChannel.class);
         SocketChannel ch2 = mock(SocketChannel.class);
+        doReturn(false).when(ch1).send(any());
+        doReturn(true).when(ch2).send(any());
 
         when(channelPool.activeChannels()).thenReturn(List.of(ch1, ch2));
+        when(channelPool.availableChannels()).thenReturn(List.of(ch1, ch2));
         when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
-        when(strategy.next(any(), eq(ctx))).thenReturn(ch1);
+        when(strategy.next(any(), eq(ctx))).thenReturn(ch2);
+
         when(ctx.getRawBytes()).thenReturn(new byte[]{0x01});
 
         ServerTransport transport =
@@ -103,8 +111,10 @@ class ServerTransportTest {
     void send_shouldHandleEmptyPayload() {
         when(channelPool.activeChannels()).thenReturn(List.of(channel));
         when(channelPool.getVersion()).thenReturn(new AtomicLong(1));
+        when(channelPool.availableChannels()).thenReturn(List.of(channel));
         when(strategy.next(any(), eq(ctx))).thenReturn(channel);
         when(ctx.getRawBytes()).thenReturn(new byte[0]);
+        when(channel.send(any())).thenReturn(true);
 
         ServerTransport transport =
                 new ServerTransport(serverSocket, strategy);

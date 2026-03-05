@@ -6,7 +6,7 @@
 
     <groupId>com.socket.edge</groupId>
     <artifactId>socket-edge</artifactId>
-    <version>1.0.0</version>
+    <version>1.2.0</version>
     <name>Socket Edge</name>
 	<packaging>jar</packaging>
     <description>Socket Edge</description>

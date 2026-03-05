@@ -28,7 +28,6 @@ public class MessageContext {
     private SocketType outboundType;
     private Iso8583Profile profile;
     private Map<String, Object> properties = new ConcurrentHashMap<>();
-    private SocketTelemetry socketTelemetry;
 
     public MessageContext(Map<String, String> isoFields, byte[] rawBytes) {
         this.isoFields = isoFields;
@@ -155,11 +154,4 @@ public class MessageContext {
         return properties.remove(key);
     }
 
-    public SocketTelemetry getSocketTelemetry() {
-        return socketTelemetry;
-    }
-
-    public void setSocketTelemetry(SocketTelemetry socketTelemetry) {
-        this.socketTelemetry = socketTelemetry;
-    }
 }

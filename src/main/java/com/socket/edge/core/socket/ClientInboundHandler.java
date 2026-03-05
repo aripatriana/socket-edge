@@ -1,8 +1,8 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.constant.SocketState;
 import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.MessageContext;
-import com.socket.edge.core.SocketTelemetry;
 import com.socket.edge.constant.SocketType;
 import com.socket.edge.utils.IsoParser;
 import io.netty.channel.ChannelHandlerContext;
@@ -18,11 +18,13 @@ public final class ClientInboundHandler
 
     private static final Logger log = LoggerFactory.getLogger(ClientInboundHandler.class);
 
+    private SocketManager sm;
     private final DefaultClientSocket clientSocket;
     private IsoParser isoParser;
     private MessageContextProcess messageContextProcess;
 
-    public ClientInboundHandler(DefaultClientSocket clientSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
+    public ClientInboundHandler(SocketManager sm, DefaultClientSocket clientSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
+        this.sm = sm;
         this.clientSocket = clientSocket;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;
@@ -34,14 +36,14 @@ public final class ClientInboundHandler
 
         var socketChannel = clientSocket.channelPool().getChannel(ctx.channel());
         if (socketChannel == null) {
-            log.warn("SocketChannel not found for {}", ctx.channel().id());
+            log.warn("Skip channelRead: SocketChannel not found for {}", ctx.channel().id());
+            ctx.channel().close();
             return;
         }
 
-        SocketTelemetry socketTelemetry = socketChannel.getSocketTelemetry();
-        socketTelemetry.onMessage();
-
         try {
+            socketChannel.onMessage();
+
             if (!(msg instanceof byte[])) {
                 log.warn("Unsupported message type: {}", msg.getClass());
             }
@@ -61,13 +63,12 @@ public final class ClientInboundHandler
             msgCtx.setInboundType(SocketType.CLIENT);
             msgCtx.setOutboundType(SocketType.SERVER);
             msgCtx.addProperty("receivedTimeNs", start);
-            msgCtx.setSocketTelemetry(socketTelemetry);
             msgCtx.setSocketChannel(socketChannel);
 
             messageContextProcess.process(msgCtx);
         } catch (Exception e) {
             log.error("{} error read message: {}", clientSocket.getId(), e.getMessage());
-            socketTelemetry.onError();
+            socketChannel.onError();
         }
     }
 
@@ -76,22 +77,39 @@ public final class ClientInboundHandler
         super.channelActive(ctx);
         var socketChannel = clientSocket.channelPool().getChannel(ctx.channel());
         if (socketChannel == null) {
-            log.warn("SocketChannel not found for {}", ctx.channel().id());
+            log.warn("Skip channelActive: SocketChannel not found for {}", ctx.channel().id());
+            ctx.channel().close();
             return;
         }
-        socketChannel.getSocketTelemetry().onConnect();
+        clientSocket.changeState(SocketState.ACTIVE);
+        socketChannel.onConnect();
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
+
         var socketChannel = clientSocket.channelPool().getChannel(ctx.channel());
         if (socketChannel == null) {
-            log.warn("SocketChannel not found for {}", ctx.channel().id());
+            log.warn("Skip channelInactive: SocketChannel not found for {}", ctx.channel().id());
             return;
         }
-        socketChannel.getSocketTelemetry().onConnect();
-        clientSocket.onDisconnect(ctx.channel());
+
+        AbstractSocket socketServer = sm.getSocketServerByName(clientSocket.getName());
+        if (socketServer == null) {
+            log.warn("Skip channelActive: No server socket found for client socket {}", clientSocket.getId());
+            clientSocket.restart();
+            return;
+        }
+
+        int totalAvailableChannels = socketServer.channelPool().availableChannels().size();
+        if (totalAvailableChannels == 0) {
+            log.warn("No available channels in server socket {} for client socket {}", socketServer.getId(), clientSocket.getId());
+            clientSocket.restart();
+        } else {
+            clientSocket.scheduleReconnect();
+        }
+        socketChannel.onDisconnect();
     }
 
     @Override

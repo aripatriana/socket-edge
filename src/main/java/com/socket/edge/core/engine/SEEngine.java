@@ -175,7 +175,7 @@ public class SEEngine extends RouteBuilder {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
                     if (ctx != null) {
-                        ctx.getSocketTelemetry().onError();
+                        ctx.getSocketChannel().onError();
                         log.error(
                                 "corrKey={} errMsg={} msg={}",
                                 ctx.getCorrelationKey(),
@@ -289,7 +289,7 @@ public class SEEngine extends RouteBuilder {
                     transport.send(ctx);
 
                     long latencyNs = System.nanoTime() - (long) ctx.getProperty("receivedTimeNs");
-                    ctx.getSocketTelemetry().onComplete(latencyNs);
+                    ctx.getSocketChannel().onComplete(latencyNs);
                 });
 
         /*
@@ -333,7 +333,7 @@ public class SEEngine extends RouteBuilder {
                         }
 
                         long latencyNs = System.nanoTime() - (long) ctx.getProperty("receivedTimeNs");
-                        ctx.getSocketTelemetry().onComplete(latencyNs);
+                        ctx.getSocketChannel().onComplete(latencyNs);
 
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());

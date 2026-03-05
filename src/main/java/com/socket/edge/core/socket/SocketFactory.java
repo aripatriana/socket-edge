@@ -50,6 +50,8 @@ public class SocketFactory {
      */
     private final MessageContextProcess messageContextProcess;
 
+    private final SocketManager socketManager;
+
     /**
      * Creates a new {@code SocketFactory}.
      *
@@ -58,7 +60,8 @@ public class SocketFactory {
      * @param messageContextProcess message context processor
      * @throws NullPointerException if any dependency is {@code null}
      */
-    public SocketFactory(TelemetryRegistry telemetryRegistry, IsoParser isoParser, MessageContextProcess messageContextProcess) {
+    public SocketFactory(SocketManager socketManager, TelemetryRegistry telemetryRegistry, IsoParser isoParser, MessageContextProcess messageContextProcess) {
+        this.socketManager = socketManager;
         this.telemetryRegistry = telemetryRegistry;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;
@@ -82,6 +85,7 @@ public class SocketFactory {
                 cfg.server().listenHost(),
                 cfg.server().listenPort(),
                 cfg.server().pool(),
+                socketManager,
                 telemetryRegistry,
                 isoParser,
                 messageContextProcess
@@ -105,6 +109,7 @@ public class SocketFactory {
                 SystemBootstrap.isCluster(),
                 cfg.name(),
                 endpoint,
+                socketManager,
                 telemetryRegistry,
                 isoParser,
                 messageContextProcess

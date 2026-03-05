@@ -3,7 +3,6 @@ package com.socket.edge.core;
 import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.socket.AbstractSocket;
 import com.socket.edge.core.socket.SocketChannelPooling;
-import com.socket.edge.model.EndpointKey;
 import com.socket.edge.model.Metrics;
 import com.socket.edge.model.Queue;
 import com.socket.edge.model.SocketEndpoint;

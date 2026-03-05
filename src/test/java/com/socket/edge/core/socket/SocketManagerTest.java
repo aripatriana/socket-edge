@@ -1,5 +1,6 @@
 package com.socket.edge.core.socket;
 
+import com.socket.edge.constant.SocketType;
 import com.socket.edge.core.transport.TransportRegister;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.ClientChannel;
@@ -208,7 +209,10 @@ class SocketManagerTest {
 
     @Test
     void destroyServerSocket_shouldShutdownAndUnregister() throws InterruptedException {
+        when(serverSocket.getType()).thenReturn(SocketType.SERVER);
+        when(serverSocket.getName()).thenReturn("CH1");
         when(serverSocket.getId()).thenReturn(CommonUtil.serverId("CH1", 7000));
+
         when(clientSocket.getId()).thenReturn(CommonUtil.clientId("CH1", "localhost", 9000));
 
         when(socketFactory.createServer(cfg)).thenReturn(serverSocket);
@@ -225,6 +229,8 @@ class SocketManagerTest {
     void destroyClientSocket_shouldShutdownAndUnregister() throws InterruptedException {
         when(clientSocket.getId()).thenReturn(CommonUtil.clientId("CH1", "localhost", 9000));
         when(socketFactory.createClient(cfg, endpoint)).thenReturn(clientSocket);
+        when(clientSocket.getName()).thenReturn("CH1");
+        when(clientSocket.getType()).thenReturn(SocketType.CLIENT);
 
         socketManager.createClientSockets(cfg);
         socketManager.destroyClientSocket(cfg, endpoint);

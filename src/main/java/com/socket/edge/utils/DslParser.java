@@ -225,10 +225,6 @@ public final class DslParser {
                         case "failtimeout":
                             failTimeout = Integer.parseInt(p[i + 1]);
                             break;
-                        default:
-                            throw new IllegalStateException(
-                                    "unknown connect option: " + p[i]
-                            );
                     }
                 }
 
@@ -312,10 +308,6 @@ public final class DslParser {
                         case "failtimeout":
                             failTimeout = Integer.parseInt(p[i + 1]);
                             break;
-                        default:
-                            throw new IllegalStateException(
-                                    "unknown connect option: " + p[i]
-                            );
                     }
                 }
 

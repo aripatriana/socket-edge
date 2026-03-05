@@ -13,6 +13,7 @@ import com.socket.edge.utils.IsoParser;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
@@ -85,6 +86,8 @@ public class DefaultServerSocket extends AbstractSocket {
      */
     private volatile boolean running = false;
 
+    private SocketManager sm;
+
     /**
      * ISO message parser.
      */
@@ -133,6 +136,7 @@ public class DefaultServerSocket extends AbstractSocket {
             String host,
             int port,
             List<SocketEndpoint> allowlist,
+            SocketManager sm,
             TelemetryRegistry telemetryRegistry,
             IsoParser parser,
             MessageContextProcess forward
@@ -152,6 +156,7 @@ public class DefaultServerSocket extends AbstractSocket {
 
         allowlist.forEach(this::registerEndpoint);
 
+        this.sm = sm;
         this.telemetryRegistry = telemetryRegistry;
         this.channelPool = new SocketChannelPooling(this);
 
@@ -182,40 +187,40 @@ public class DefaultServerSocket extends AbstractSocket {
             return;
         }
 
-        log.debug(
-                isCluster()
-                        ? "Start socket app id={} as {}"
-                        : "Start socket app id={}",
-                getId(),
-                getRole()
-        );
-
-        running = true;
-        startTime = System.currentTimeMillis();
-
         if (!isCluster() || getRole() == NodeRole.MASTER) {
-            activate();
+            log.debug(
+                    isCluster()
+                            ? "Start socket app id={} as {}"
+                            : "Start socket app id={}",
+                    getId(),
+                    getRole()
+            );
+
+            running = true;
+            startTime = System.currentTimeMillis();
+
+            startServer();
         } else {
-            socketState = SocketState.STANDBY;
+            changeState(SocketState.STANDBY);
             log.info("{} started in standby mode", getId());
         }
     }
 
     /**
-     * Activates the server socket by binding to the configured port
+     * Start the server socket by binding to the configured port
      * and accepting incoming connections.
      *
      * @throws InterruptedException if bind is interrupted
      */
-    @Override
-    public synchronized void activate() throws InterruptedException {
+    private synchronized void startServer() throws InterruptedException {
         if (!running) {
-            log.warn("{} not running, cannot activate", getId());
+            log.warn("Skip start: {} not running, cannot activate", getId());
             return;
         }
 
-        if (socketState == SocketState.ACTIVE) {
-            log.warn("{} already active", getId());
+        if (getState() == SocketState.LISTEN
+            || getState() == SocketState.ACTIVE) {
+            log.warn("Skip start: {} already {}", getId(), getState());
             return;
         }
 
@@ -226,16 +231,16 @@ public class DefaultServerSocket extends AbstractSocket {
                     .option(ChannelOption.SO_REUSEADDR, true)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childOption(ChannelOption.TCP_NODELAY, true)
-                    .childHandler(new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
-                        protected void initChannel(io.netty.channel.socket.SocketChannel ch) {
+                        protected void initChannel(SocketChannel ch) {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                             ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(
                                     Integer.MAX_VALUE, 0, 2, 0, 2
                             ));
                             ch.pipeline().addLast(new ByteDecoder());
                             ch.pipeline().addLast(new ServerInboundHandler(
-                                    DefaultServerSocket.this, parser, forward
+                                    sm, DefaultServerSocket.this, parser, forward
                             ));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
@@ -245,39 +250,14 @@ public class DefaultServerSocket extends AbstractSocket {
                     .sync();
 
             serverChannel = future.channel();
-            socketState = SocketState.ACTIVE;
+            changeState(SocketState.LISTEN);
 
             log.info("{} listening on {}", getId(), this.port);
         } catch (Exception e) {
-            socketState = SocketState.ERROR;
+            changeState(SocketState.ERROR);
+
             log.error("Failed to bind server socket {}", getId(), e);
             throw e;
-        }
-    }
-
-    /**
-     * Puts the server socket into standby mode and stops
-     * accepting new connections.
-     */
-    @Override
-    public synchronized void standby() {
-        if (socketState == SocketState.STANDBY) {
-            return;
-        }
-
-        try {
-            socketState = SocketState.STANDBY;
-
-            channelPool.closeAll();
-            if (serverChannel != null) {
-                serverChannel.close();
-                serverChannel = null;
-            }
-
-            log.info("{} standby", getId());
-        } catch (Exception e) {
-            socketState = SocketState.ERROR;
-            log.error("Failed to demote socket {}", getId(), e);
         }
     }
 
@@ -291,17 +271,22 @@ public class DefaultServerSocket extends AbstractSocket {
             return;
         }
 
-        running = false;
-        startTime = 0;
-        socketState = SocketState.DOWN;
+        try {
+            running = false;
+            startTime = 0;
+            changeState(SocketState.DOWN);
 
-        channelPool.closeAll();
-        if (serverChannel != null) {
-            serverChannel.close();
-            serverChannel = null;
+            channelPool.closeAll();
+            if (serverChannel != null) {
+                serverChannel.close();
+                serverChannel = null;
+            }
+
+            log.info("{} stopped", getId());
+        } catch (Exception e) {
+            changeState(SocketState.ERROR);
+            log.error("Failed to demote socket {}", getId(), e);
         }
-
-        log.info("{} stopped", getId());
     }
 
     /**
@@ -347,6 +332,10 @@ public class DefaultServerSocket extends AbstractSocket {
     @Override
     public SocketState getState() {
         return socketState;
+    }
+
+    public void changeState(SocketState socketState) {
+        this.socketState = socketState;
     }
 }
 

@@ -103,24 +103,6 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
     }
 
     /**
-     * Returns the telemetry associated with this channel.
-     *
-     * @return socket telemetry
-     */
-    public SocketTelemetry getSocketTelemetry() {
-        return socketTelemetry;
-    }
-
-    /**
-     * Updates the telemetry associated with this channel.
-     *
-     * @param socketTelemetry new telemetry instance
-     */
-    public void setSocketTelemetry(SocketTelemetry socketTelemetry) {
-        this.socketTelemetry = socketTelemetry;
-    }
-
-    /**
      * Returns the associated socket endpoint.
      *
      * @return socket endpoint
@@ -272,5 +254,25 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
     @Override
     public int getPriority() {
         return socketEndpoint.getPriority();
+    }
+
+    public void onMessage() {
+        socketTelemetry.onMessage();
+    }
+
+    public void onComplete(long latencyNs) {
+        socketTelemetry.onComplete(latencyNs);
+    }
+
+    public void onError() {
+        socketTelemetry.onError();
+    }
+
+    public void onConnect() {
+        socketTelemetry.onConnect();
+    }
+
+    public void onDisconnect() {
+        socketTelemetry.onDisconnect();
     }
 }

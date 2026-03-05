@@ -388,7 +388,7 @@ public class SystemBootstrap {
     public void handleSocketConfiguration() throws Exception {
         log.info("Setup socket configuration..");
         messageContextProcess = new MessageContextProcess(camelContext.createProducerTemplate());
-        socketFactory = new SocketFactory(telemetryRegistry, parser, messageContextProcess);
+        socketFactory = new SocketFactory(socketManager, telemetryRegistry, parser, messageContextProcess);
         socketManager = new SocketManager(socketFactory, transportRegister);
 
         /**
