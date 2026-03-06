@@ -19,9 +19,9 @@ import com.socket.edge.utils.IsoParser;
  * <p>
  * Created sockets are configured with:
  * <ul>
- *   <li>Telemetry instrumentation</li>
- *   <li>ISO message parsing</li>
- *   <li>Message context processing</li>
+ * <li>Telemetry instrumentation</li>
+ * <li>ISO message parsing</li>
+ * <li>Message context processing</li>
  * </ul>
  * </p>
  *
@@ -50,21 +50,45 @@ public class SocketFactory {
      */
     private final MessageContextProcess messageContextProcess;
 
-    private final SocketManager socketManager;
+    /**
+     * Socket manager bound after construction (OPT-07: deferred binding).
+     */
+    private SocketManager socketManager;
 
     /**
      * Creates a new {@code SocketFactory}.
      *
-     * @param telemetryRegistry telemetry registry
-     * @param isoParser ISO message parser
+     * <p>
+     * Note: {@link SocketManager} is NOT passed in the constructor
+     * to avoid a circular null-reference. Use
+     * {@link #bindSocketManager(SocketManager)}
+     * after constructing both objects.
+     * </p>
+     *
+     * @param telemetryRegistry     telemetry registry
+     * @param isoParser             ISO message parser
      * @param messageContextProcess message context processor
      * @throws NullPointerException if any dependency is {@code null}
      */
-    public SocketFactory(SocketManager socketManager, TelemetryRegistry telemetryRegistry, IsoParser isoParser, MessageContextProcess messageContextProcess) {
-        this.socketManager = socketManager;
+    public SocketFactory(TelemetryRegistry telemetryRegistry, IsoParser isoParser,
+            MessageContextProcess messageContextProcess) {
         this.telemetryRegistry = telemetryRegistry;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;
+    }
+
+    /**
+     * Binds the socket manager after construction.
+     *
+     * <p>
+     * This must be called before any socket creation methods
+     * are invoked.
+     * </p>
+     *
+     * @param socketManager socket manager
+     */
+    public void bindSocketManager(SocketManager socketManager) {
+        this.socketManager = socketManager;
     }
 
     /**
@@ -88,8 +112,7 @@ public class SocketFactory {
                 socketManager,
                 telemetryRegistry,
                 isoParser,
-                messageContextProcess
-        );
+                messageContextProcess);
     }
 
     /**
@@ -100,7 +123,7 @@ public class SocketFactory {
      * to the specified remote endpoint.
      * </p>
      *
-     * @param cfg channel configuration
+     * @param cfg      channel configuration
      * @param endpoint remote socket endpoint
      * @return configured client socket
      */
@@ -112,8 +135,6 @@ public class SocketFactory {
                 socketManager,
                 telemetryRegistry,
                 isoParser,
-                messageContextProcess
-        );
+                messageContextProcess);
     }
 }
-

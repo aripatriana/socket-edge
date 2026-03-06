@@ -7,30 +7,35 @@ import java.util.concurrent.*;
 /**
  * In-memory implementation of {@link CorrelationStore} with TTL-based eviction.
  *
- * <p>{@code CacheCorrelationStore} stores correlation entries for
+ * <p>
+ * {@code CacheCorrelationStore} stores correlation entries for
  * request–response matching in asynchronous message flows.
  * Each entry is associated with a time-to-live (TTL) to prevent
- * memory leaks when responses never arrive.</p>
+ * memory leaks when responses never arrive.
+ * </p>
  *
- * <p>Key characteristics:
+ * <p>
+ * Key characteristics:
  * <ul>
- *   <li>Thread-safe access using {@link ConcurrentHashMap}</li>
- *   <li>Per-entry TTL enforcement</li>
- *   <li>Background cleanup using a scheduled executor</li>
- *   <li>Non-blocking read/write operations</li>
+ * <li>Thread-safe access using {@link ConcurrentHashMap}</li>
+ * <li>Per-entry TTL enforcement</li>
+ * <li>Background cleanup using a scheduled executor</li>
+ * <li>Non-blocking read/write operations</li>
  * </ul>
  *
- * <p>Expiration strategy:
+ * <p>
+ * Expiration strategy:
  * <ul>
- *   <li>Entries are lazily evicted on {@link #get(String)}</li>
- *   <li>Entries are eagerly evicted by a periodic cleanup task</li>
+ * <li>Entries are lazily evicted on {@link #get(String)}</li>
+ * <li>Entries are eagerly evicted by a periodic cleanup task</li>
  * </ul>
  *
- * <p>This implementation is suitable for:
+ * <p>
+ * This implementation is suitable for:
  * <ul>
- *   <li>Single-node or active–passive cluster setups</li>
- *   <li>Short-lived ISO 8583 request–response correlations</li>
- *   <li>High-throughput, low-latency routing engines</li>
+ * <li>Single-node or active–passive cluster setups</li>
+ * <li>Short-lived ISO 8583 request–response correlations</li>
+ * <li>High-throughput, low-latency routing engines</li>
  * </ul>
  *
  * @author Ari Patriana
@@ -93,8 +98,7 @@ public class CacheCorrelationStore implements CorrelationStore {
     public CacheCorrelationStore(long ttlMs) {
         this.ttlMs = ttlMs;
         this.cleaner = Executors.newSingleThreadScheduledExecutor(
-                r -> new Thread(r, "correlation-cleaner")
-        );
+                r -> new Thread(r, "correlation-cleaner"));
         startCleanup();
     }
 
@@ -112,8 +116,10 @@ public class CacheCorrelationStore implements CorrelationStore {
     /**
      * Retrieves a correlation entry by key.
      *
-     * <p>If the entry has expired, it will be removed
-     * and {@code null} will be returned.</p>
+     * <p>
+     * If the entry has expired, it will be removed
+     * and {@code null} will be returned.
+     * </p>
      *
      * @param key correlation key
      * @return correlation entry or {@code null} if not found or expired
@@ -147,10 +153,11 @@ public class CacheCorrelationStore implements CorrelationStore {
     /**
      * Starts the background cleanup task.
      *
-     * <p>The cleanup interval is the smaller of:
+     * <p>
+     * The cleanup interval is the smaller of:
      * <ul>
-     *   <li>Configured TTL</li>
-     *   <li>30 seconds</li>
+     * <li>Configured TTL</li>
+     * <li>30 seconds</li>
      * </ul>
      */
     private void startCleanup() {
@@ -165,6 +172,7 @@ public class CacheCorrelationStore implements CorrelationStore {
     /**
      * Shuts down the cleanup executor.
      */
+    @Override
     public void shutdown() {
         cleaner.shutdown();
     }
@@ -179,4 +187,3 @@ public class CacheCorrelationStore implements CorrelationStore {
         return store.size();
     }
 }
-

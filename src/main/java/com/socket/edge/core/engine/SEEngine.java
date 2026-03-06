@@ -21,41 +21,45 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
-
 /**
  * Core routing engine for ISO 8583 message processing.
  *
- * <p>{@code SEEngine} is an Apache Camel {@link RouteBuilder} that orchestrates
+ * <p>
+ * {@code SEEngine} is an Apache Camel {@link RouteBuilder} that orchestrates
  * end-to-end ISO 8583 message handling, including:
  * <ul>
- *   <li>Inbound message reception</li>
- *   <li>Channel configuration resolution</li>
- *   <li>ISO profile and direction resolution</li>
- *   <li>Correlation key generation</li>
- *   <li>Inbound / outbound routing</li>
- *   <li>Request–response correlation management</li>
- *   <li>Transport dispatch and socket reply handling</li>
+ * <li>Inbound message reception</li>
+ * <li>Channel configuration resolution</li>
+ * <li>ISO profile and direction resolution</li>
+ * <li>Correlation key generation</li>
+ * <li>Inbound / outbound routing</li>
+ * <li>Request–response correlation management</li>
+ * <li>Transport dispatch and socket reply handling</li>
  * </ul>
  *
- * <p>The engine is designed to be:
+ * <p>
+ * The engine is designed to be:
  * <ul>
- *   <li>Asynchronous (SEDA-based)</li>
- *   <li>Cluster-friendly</li>
- *   <li>Profile-driven</li>
- *   <li>Transport-agnostic</li>
+ * <li>Asynchronous (SEDA-based)</li>
+ * <li>Cluster-friendly</li>
+ * <li>Profile-driven</li>
+ * <li>Transport-agnostic</li>
  * </ul>
  *
- * <p>Message flow (high level):
+ * <p>
+ * Message flow (high level):
  * <ol>
- *   <li>Receive message from socket layer</li>
- *   <li>Resolve channel configuration</li>
- *   <li>Resolve ISO profile and direction</li>
- *   <li>Build correlation key</li>
- *   <li>Route to inbound or outbound flow</li>
- *   <li>Dispatch via transport or reply via socket</li>
+ * <li>Receive message from socket layer</li>
+ * <li>Resolve channel configuration</li>
+ * <li>Resolve ISO profile and direction</li>
+ * <li>Build correlation key</li>
+ * <li>Route to inbound or outbound flow</li>
+ * <li>Dispatch via transport or reply via socket</li>
  * </ol>
  *
- * <p>This class is instantiated once per Camel context.</p>
+ * <p>
+ * This class is instantiated once per Camel context.
+ * </p>
  *
  * @author Ari Patriana
  * @since 1.0.0
@@ -102,7 +106,7 @@ public class SEEngine extends RouteBuilder {
     /**
      * Creates a new SEEngine instance.
      *
-     * @param metadataHolder      runtime metadata holder
+     * @param metadataHolder     runtime metadata holder
      * @param profileProcessor   ISO profile resolver
      * @param channelCfgSelector channel configuration selector
      * @param correlationStore   correlation store
@@ -113,8 +117,7 @@ public class SEEngine extends RouteBuilder {
             Iso8583ProfileResolver profileProcessor,
             ChannelCfgSelector channelCfgSelector,
             CorrelationStore correlationStore,
-            TransportProvider transportProvider
-    ) {
+            TransportProvider transportProvider) {
         this.metadataHolder = metadataHolder;
         this.profileProcessor = profileProcessor;
         this.channelCfgSelector = channelCfgSelector;
@@ -125,8 +128,10 @@ public class SEEngine extends RouteBuilder {
     /**
      * Binds the socket manager after initialization.
      *
-     * <p>This is required for resolving reply sockets
-     * during outbound message handling.</p>
+     * <p>
+     * This is required for resolving reply sockets
+     * during outbound message handling.
+     * </p>
      *
      * @param socketManager socket manager
      */
@@ -137,8 +142,10 @@ public class SEEngine extends RouteBuilder {
     /**
      * Binds the {@link CorrelationStore} after component initialization.
      *
-     * <p>This binding is required to resolve reply sockets during
-     * outbound message handling.</p>
+     * <p>
+     * This binding is required to resolve reply sockets during
+     * outbound message handling.
+     * </p>
      *
      * @param correlationStore the correlation store instance to bind
      */
@@ -149,13 +156,14 @@ public class SEEngine extends RouteBuilder {
     /**
      * Configures all Camel routes for the engine.
      *
-     * <p>This method defines:
+     * <p>
+     * This method defines:
      * <ul>
-     *   <li>Global exception handling</li>
-     *   <li>Message receive route</li>
-     *   <li>Inbound processing route</li>
-     *   <li>Outbound processing route</li>
-     *   <li>Fallback route for unknown direction</li>
+     * <li>Global exception handling</li>
+     * <li>Message receive route</li>
+     * <li>Inbound processing route</li>
+     * <li>Outbound processing route</li>
+     * <li>Fallback route for unknown direction</li>
      * </ul>
      */
     @Override
@@ -169,8 +177,7 @@ public class SEEngine extends RouteBuilder {
                 .process(e -> {
                     Exception ex = e.getProperty(
                             Exchange.EXCEPTION_CAUGHT,
-                            Exception.class
-                    );
+                            Exception.class);
 
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
@@ -180,8 +187,7 @@ public class SEEngine extends RouteBuilder {
                                 "corrKey={} errMsg={} msg={}",
                                 ctx.getCorrelationKey(),
                                 ex.getMessage(),
-                                new String(ctx.getRawBytes())
-                        );
+                                new String(ctx.getRawBytes()));
                     } else {
                         log.error("errMsg={}", ex.getMessage());
                     }
@@ -204,8 +210,7 @@ public class SEEngine extends RouteBuilder {
                             ctx.getInboundType(),
                             ctx.getLocalAddress(),
                             ctx.getRemoteAddress(),
-                            metadataHolder.get().channelCfgs()
-                    );
+                            metadataHolder.get().channelCfgs());
 
                     ctx.setChannelCfg(cfg);
                 })
@@ -236,9 +241,8 @@ public class SEEngine extends RouteBuilder {
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
-                    Iso8583Profile profile =
-                            metadataHolder.get().profiles()
-                                    .get(ctx.getChannelCfg().profile());
+                    Iso8583Profile profile = metadataHolder.get().profiles()
+                            .get(ctx.getChannelCfg().profile());
 
                     String key = profileProcessor.buildCorrelationKey(ctx, profile);
 
@@ -269,18 +273,14 @@ public class SEEngine extends RouteBuilder {
                             CorrelationEntry.newEntry(
                                     ctx.getCorrelationKey(),
                                     ctx.getSocketId(),
-                                    ctx.getSocketChannel().channelId().asLongText()
-                            )
-                    );
+                                    ctx.getSocketChannel().channelId().asLongText()));
                 })
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
 
-                    Transport transport =
-                            transportProvider.resolve(
-                                    ctx.getChannelCfg(),
-                                    ctx.getOutboundType()
-                            );
+                    Transport transport = transportProvider.resolve(
+                            ctx.getChannelCfg(),
+                            ctx.getOutboundType());
 
                     if (!transport.isActive()) {
                         throw new IllegalStateException("Transport NOT ACTIVE");
@@ -305,20 +305,20 @@ public class SEEngine extends RouteBuilder {
                         CorrelationEntry replyEntry = correlationStore.get(ctx.getCorrelationKey());
 
                         if (replyEntry == null) {
-                            throw new IllegalStateException( "No inbound correlation entry for correlation=" + ctx.getCorrelationKey());
+                            throw new IllegalStateException(
+                                    "No inbound correlation entry for correlation=" + ctx.getCorrelationKey());
                         }
 
                         AbstractSocket replySocket = socketManager.getSocket(replyEntry.replySocketId());
 
                         if (replySocket == null) {
-                            throw new IllegalStateException("No inbound socket for correlation=" + ctx.getCorrelationKey());
+                            throw new IllegalStateException(
+                                    "No inbound socket for correlation=" + ctx.getCorrelationKey());
                         }
 
-                        SocketChannel replyChannel =
-                                replySocket.channelPool()
-                                        .getChannelById(
-                                                replyEntry.replyChannelId()
-                                        );
+                        SocketChannel replyChannel = replySocket.channelPool()
+                                .getChannelById(
+                                        replyEntry.replyChannelId());
 
                         if (replyChannel != null && replyChannel.isActive()) {
                             replyChannel.send(ctx.getRawBytes());
@@ -326,9 +326,13 @@ public class SEEngine extends RouteBuilder {
                             List<SocketChannel> candidates = replySocket.channelPool().activeChannels();
 
                             if (candidates != null && !candidates.isEmpty()) {
+                                // OPT-11: Log when falling back to a different channel.
+                                log.warn("corrKey={} original channel inactive, falling back to alternate channel",
+                                        ctx.getCorrelationKey());
                                 candidates.get(0).send(ctx.getRawBytes());
                             } else {
-                                throw new IllegalStateException("No channel active for correlation=" + ctx.getCorrelationKey());
+                                throw new IllegalStateException(
+                                        "No channel active for correlation=" + ctx.getCorrelationKey());
                             }
                         }
 

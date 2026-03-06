@@ -11,18 +11,18 @@ public final class DslParser {
     public Metadata parse(String content) {
         Metadata md = new Metadata(
                 parseChannels(content),
-                parseProfiles(content)
-        );
+                parseProfiles(content));
 
         validateProfiles(md.channelCfgs(), md.profiles());
         return md;
     }
 
-    record Block(String name, String body) {}
+    record Block(String name, String body) {
+    }
 
     private String stripComments(String content) {
         return Arrays.stream(content.split("\n"))
-            .map(l -> l.split("#", 2)[0])
+                .map(l -> l.split("#", 2)[0])
                 .collect(Collectors.joining("\n"));
     }
 
@@ -56,11 +56,7 @@ public final class DslParser {
                 continue;
             }
 
-            // ❗ FIX UTAMA: kalau tidak ada '{', ini BUKAN block
-            if (braceIdx == -1) {
-                idx += keyword.length();
-                continue;
-            }
+            // OPT-04: Removed unreachable dead code (braceIdx == -1 already handled above).
 
             String name = null;
             String between = content.substring(nameEnd, braceIdx).trim();
@@ -73,8 +69,10 @@ public final class DslParser {
 
             while (i < content.length() && depth > 0) {
                 char c = content.charAt(i++);
-                if (c == '{') depth++;
-                else if (c == '}') depth--;
+                if (c == '{')
+                    depth++;
+                else if (c == '}')
+                    depth--;
             }
 
             if (depth != 0) {
@@ -91,7 +89,7 @@ public final class DslParser {
 
     private List<ChannelCfg> parseChannels(String content) {
         return extractBlocks(content, "channel")
-            .stream()
+                .stream()
                 .map(b -> parseSingleChannel(b.body()))
                 .collect(Collectors.toList());
     }
@@ -156,15 +154,16 @@ public final class DslParser {
     private int collectBlock(
             List<String> lines,
             int startIndex,
-            StringBuilder out
-    ) {
+            StringBuilder out) {
         int depth = 0;
 
         for (int i = startIndex; i < lines.size(); i++) {
             String l = lines.get(i);
 
-            if (l.contains("{")) depth++;
-            if (l.contains("}")) depth--;
+            if (l.contains("{"))
+                depth++;
+            if (l.contains("}"))
+                depth--;
 
             // ⬇️ SKIP header line (direction {...}, correlation {...})
             if (i != startIndex && depth > 0) {
@@ -236,8 +235,7 @@ public final class DslParser {
                 }
 
                 pool.add(
-                        new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout * 1000)
-                );
+                        new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout * 1000));
             }
 
             else if (line.startsWith("strategy")) {
@@ -270,8 +268,7 @@ public final class DslParser {
                 listenHost,
                 listenPort,
                 pool,
-                strategy
-        );
+                strategy);
     }
 
     private ClientChannel parseClient(String block) {
@@ -289,8 +286,8 @@ public final class DslParser {
                 String host = p[1];
                 int port = Integer.parseInt(p[2]);
 
-                int weight = 1;     // default
-                int priority = 0;   // default
+                int weight = 1; // default
+                int priority = 0; // default
                 int maxFails = 1;
                 int failTimeout = 10; // seconds
 
@@ -328,8 +325,7 @@ public final class DslParser {
                 }
 
                 endpoints.add(
-                        new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout * 1000)
-                );
+                        new SocketEndpoint(host, port, weight, priority, maxFails, failTimeout * 1000));
             }
 
             else if (line.startsWith("strategy")) {
@@ -356,8 +352,7 @@ public final class DslParser {
         for (Block b : extractBlocks(content, "profile")) {
             profiles.put(
                     b.name(),
-                    parseSingleProfile(b.body())
-            );
+                    parseSingleProfile(b.body()));
         }
         return profiles;
     }
@@ -377,8 +372,7 @@ public final class DslParser {
 
             if (line.startsWith("direction")) {
                 Direction dir = Direction.valueOf(
-                        line.split("\\s+")[1].toUpperCase()
-                );
+                        line.split("\\s+")[1].toUpperCase());
 
                 StringBuilder sb = new StringBuilder();
                 i = collectBlock(lines, i, sb);
@@ -400,8 +394,7 @@ public final class DslParser {
         if (!directions.containsKey(Direction.INBOUND)
                 || directions.get(Direction.INBOUND).isEmpty()) {
             throw new IllegalStateException(
-                    "profile must define at least one inbound rule"
-            );
+                    "profile must define at least one inbound rule");
         }
 
         return new Iso8583Profile(directions, correlation);
@@ -417,13 +410,10 @@ public final class DslParser {
             if (line.contains(" in ")) {
                 String list = line.substring(line.indexOf("["));
                 values.addAll(DslUtil.extractList(list));
-            }
-            else if (line.contains("=")) {
+            } else if (line.contains("=")) {
                 values.add(
                         DslUtil.trimQuotes(
-                                line.split("=")[1].trim()
-                        )
-                );
+                                line.split("=")[1].trim()));
             }
         }
 
@@ -444,15 +434,14 @@ public final class DslParser {
 
     private void validateProfiles(
             List<ChannelCfg> channels,
-            Map<String, Iso8583Profile> profiles
-    ) {
-//        for (ChannelCfg c : channels) {
-//            if (c.profile() != null && !profiles.containsKey(c.profile())) {
-//                throw new IllegalStateException(
-//                        "channel '" + c.name() + "' references unknown profile '" + c.profile() + "'"
-//                );
-//            }
-//        }
+            Map<String, Iso8583Profile> profiles) {
+        // OPT-02: Re-enabled profile validation (was commented out).
+        for (ChannelCfg c : channels) {
+            if (c.profile() != null && !profiles.containsKey(c.profile())) {
+                throw new IllegalStateException(
+                        "channel '" + c.name() + "' references unknown profile '" + c.profile() + "'");
+            }
+        }
     }
 
 }

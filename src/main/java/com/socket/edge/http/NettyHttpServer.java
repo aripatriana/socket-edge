@@ -27,7 +27,7 @@ public class NettyHttpServer {
     private EventLoopGroup worker;
 
     public NettyHttpServer(String name, int port,
-                           List<HttpServiceHandler> services) {
+            List<HttpServiceHandler> services) {
         this.name = name;
         this.port = port;
         this.services = services;
@@ -35,12 +35,10 @@ public class NettyHttpServer {
 
     public void start() throws InterruptedException {
         boss = new NioEventLoopGroup(1,
-                new DefaultThreadFactory(name + "-boss")
-        );
+                new DefaultThreadFactory(name + "-boss"));
 
-        worker = new NioEventLoopGroup(1,
-                new DefaultThreadFactory(name + "-worker")
-        );
+        worker = new NioEventLoopGroup(2,
+                new DefaultThreadFactory(name + "-worker"));
 
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(boss, worker)
@@ -60,7 +58,9 @@ public class NettyHttpServer {
     }
 
     public void stop() {
-        if (boss != null) boss.shutdownGracefully();
-        if (worker != null) worker.shutdownGracefully();
+        if (boss != null)
+            boss.shutdownGracefully();
+        if (worker != null)
+            worker.shutdownGracefully();
     }
 }

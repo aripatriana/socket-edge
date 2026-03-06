@@ -16,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Set;
 
-import static com.socket.edge.SystemBootstrap.sc;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -37,10 +36,9 @@ class Iso8583ProfileResolverTest {
 
     @BeforeAll
     static void initStaticConfig() {
-        if (SystemBootstrap.sc == null) {
-            SystemBootstrap.sc = ConfigFactory.parseString(
-                    "message.packager.key = \"mti\""
-            );
+        if (SystemBootstrap.getConfig() == null) {
+            SystemBootstrap.setConfig(ConfigFactory.parseString(
+                    "message.packager.key = \"mti\""));
         }
     }
 
@@ -51,7 +49,7 @@ class Iso8583ProfileResolverTest {
     @Test
     void resolveDirection_shouldReturnDirection_whenMtiIsKnown() {
         // given
-        String mtiKey = sc.getString("message.packager.key");
+        String mtiKey = SystemBootstrap.getConfig().getString("message.packager.key");
         when(ctx.field(mtiKey)).thenReturn("0200");
 
         // khusus INBOUND ada MTI
@@ -68,7 +66,7 @@ class Iso8583ProfileResolverTest {
     @Test
     void resolveDirection_shouldThrowException_whenMtiIsUnknown() {
         // given
-        String mtiKey = sc.getString("message.packager.key");
+        String mtiKey = SystemBootstrap.getConfig().getString("message.packager.key");
         when(ctx.field(mtiKey)).thenReturn("9999");
 
         when(profile.valuesFor(any()))
@@ -77,8 +75,7 @@ class Iso8583ProfileResolverTest {
         // when + then
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class,
-                () -> resolver.resolveDirection(ctx, profile)
-        );
+                () -> resolver.resolveDirection(ctx, profile));
 
         assertTrue(ex.getMessage().contains("Unknown MTI"));
     }
@@ -86,14 +83,13 @@ class Iso8583ProfileResolverTest {
     @Test
     void resolveDirection_shouldThrowException_whenMtiIsNull() {
         // given
-        String mtiKey = sc.getString("message.packager.key");
+        String mtiKey = SystemBootstrap.getConfig().getString("message.packager.key");
         when(ctx.field(mtiKey)).thenReturn(null);
 
         // when + then
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class,
-                () -> resolver.resolveDirection(ctx, profile)
-        );
+                () -> resolver.resolveDirection(ctx, profile));
 
         assertTrue(ex.getMessage().contains("MTI"));
     }
@@ -136,8 +132,7 @@ class Iso8583ProfileResolverTest {
         // when + then
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class,
-                () -> resolver.buildCorrelationKey(ctx, profile)
-        );
+                () -> resolver.buildCorrelationKey(ctx, profile));
 
         assertTrue(ex.getMessage().contains("Correlation field missing"));
     }

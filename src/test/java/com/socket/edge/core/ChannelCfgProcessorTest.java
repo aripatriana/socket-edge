@@ -28,24 +28,23 @@ class ChannelCfgProcessorTest {
     void shouldFailWhenNoChannelDefined() {
 
         String dsl = """
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("No channel defined"));
     }
@@ -57,50 +56,49 @@ class ChannelCfgProcessorTest {
     void shouldFailOnDuplicateChannelName() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool a
+                    }
+                    client {
+                        connect b 26000
+                    }
+                    profile p
                 }
-                client {
-                    connect b 26000
-                }
-                profile p
-            }
 
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26001
-                    pool c
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26001
+                        pool c
+                    }
+                    client {
+                        connect d 26001
+                    }
+                    profile p
                 }
-                client {
-                    connect d 26001
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("Duplicate channel name"));
     }
@@ -112,37 +110,36 @@ class ChannelCfgProcessorTest {
     void shouldFailOnInvalidChannelType() {
 
         String dsl = """
-            channel {
-                name test
-                type udp
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
+                channel {
+                    name test
+                    type udp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool a
+                    }
+                    client {
+                        connect b 26000
+                    }
+                    profile p
                 }
-                client {
-                    connect b 26000
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("invalid type"));
     }
@@ -154,25 +151,24 @@ class ChannelCfgProcessorTest {
     void shouldFailOnUnknownProfile() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool a
+                    }
+                    client {
+                        connect b 26000
+                    }
+                    profile unknown
                 }
-                client {
-                    connect b 26000
-                }
-                profile unknown
-            }
-            """;
+                """;
 
-        Metadata md = parser.parse(dsl);
-
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        // OPT-02: Profile validation now happens at parse time in DslParser,
+        // so the exception is thrown during parse() rather than validateMetadata().
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> parser.parse(dsl));
 
         assertTrue(ex.getMessage().contains("unknown profile"));
     }
@@ -184,50 +180,49 @@ class ChannelCfgProcessorTest {
     void shouldFailOnDuplicateServerListen() {
 
         String dsl = """
-            channel {
-                name a
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool 127.0.0.1
+                channel {
+                    name a
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool 127.0.0.1
+                    }
+                    client {
+                        connect 127.0.0.1 26000
+                    }
+                    profile p
                 }
-                client {
-                    connect 127.0.0.1 26000
-                }
-                profile p
-            }
 
-            channel {
-                name b
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool 127.0.0.1
+                channel {
+                    name b
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool 127.0.0.1
+                    }
+                    client {
+                        connect 127.0.0.1 26001
+                    }
+                    profile p
                 }
-                client {
-                    connect 127.0.0.1 26001
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("Duplicate server listen endpoint"));
     }
@@ -239,38 +234,37 @@ class ChannelCfgProcessorTest {
     void shouldFailOnDuplicateClientEndpoint() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool 127.0.0.1
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool 127.0.0.1
+                    }
+                    client {
+                        connect 127.0.0.1 26000
+                        connect 127.0.0.1 26000
+                    }
+                    profile p
                 }
-                client {
-                    connect 127.0.0.1 26000
-                    connect 127.0.0.1 26000
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("Duplicate client endpoint"));
     }
@@ -279,38 +273,37 @@ class ChannelCfgProcessorTest {
     void shouldFailOnInvalidClientStrategy() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool 127.0.0.1
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool 127.0.0.1
+                    }
+                    client {
+                        connect 127.0.0.1 26000
+                        strategy invalid
+                    }
+                    profile p
                 }
-                client {
-                    connect 127.0.0.1 26000
-                    strategy invalid
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("Unknown client strategy"));
     }
@@ -319,38 +312,37 @@ class ChannelCfgProcessorTest {
     void shouldFailOnInvalidInvalidIPAddress() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool a
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool a
+                    }
+                    client {
+                        connect b 26000
+                        strategy invalid
+                    }
+                    profile p
                 }
-                client {
-                    connect b 26000
-                    strategy invalid
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("Invalid IP address"));
     }
@@ -359,65 +351,64 @@ class ChannelCfgProcessorTest {
     void shouldFailWhenOutboundMissing() {
 
         String dsl = """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool 127.0.0.1
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool 127.0.0.1
+                    }
+                    client {
+                        connect 127.0.0.1 26000
+                    }
+                    profile p
                 }
-                client {
-                    connect 127.0.0.1 26000
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
 
         Metadata md = parser.parse(dsl);
 
-        IllegalStateException ex =
-                assertThrows(IllegalStateException.class,
-                        () -> processor.validateMetadata(md));
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> processor.validateMetadata(md));
 
         assertTrue(ex.getMessage().contains("outbound"));
     }
 
     private String validDsl() {
         return """
-            channel {
-                name test
-                type tcp
-                server {
-                    listen 127.0.0.1 26000
-                    pool 127.0.0.1
+                channel {
+                    name test
+                    type tcp
+                    server {
+                        listen 127.0.0.1 26000
+                        pool 127.0.0.1
+                    }
+                    client {
+                        connect 127.0.0.1 26000
+                        strategy roundrobin
+                    }
+                    profile p
                 }
-                client {
-                    connect 127.0.0.1 26000
-                    strategy roundrobin
-                }
-                profile p
-            }
 
-            profile p {
-                direction inbound {
-                    de1 = "0200"
+                profile p {
+                    direction inbound {
+                        de1 = "0200"
+                    }
+                    direction outbound {
+                        de39 = "00"
+                    }
+                    correlation {
+                        de11
+                    }
                 }
-                direction outbound {
-                    de39 = "00"
-                }
-                correlation {
-                    de11
-                }
-            }
-            """;
+                """;
     }
 }

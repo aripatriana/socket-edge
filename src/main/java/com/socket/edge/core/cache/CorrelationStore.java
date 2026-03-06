@@ -5,18 +5,23 @@ import com.socket.edge.model.CorrelationEntry;
 /**
  * Abstraction for storing and resolving correlation entries.
  *
- * <p>{@code CorrelationStore} is used to manage request–response
+ * <p>
+ * {@code CorrelationStore} is used to manage request–response
  * correlation in asynchronous messaging flows, such as ISO 8583
- * processing pipelines.</p>
+ * processing pipelines.
+ * </p>
  *
- * <p>Typical responsibilities:
+ * <p>
+ * Typical responsibilities:
  * <ul>
- *   <li>Store correlation data when an inbound request is received</li>
- *   <li>Resolve correlation data when an outbound response arrives</li>
- *   <li>Remove correlation entries after completion or timeout</li>
+ * <li>Store correlation data when an inbound request is received</li>
+ * <li>Resolve correlation data when an outbound response arrives</li>
+ * <li>Remove correlation entries after completion or timeout</li>
  * </ul>
  *
- * <p>Implementations must be thread-safe.</p>
+ * <p>
+ * Implementations must be thread-safe.
+ * </p>
  *
  * @author Ari Patriana
  * @since 1.0.0
@@ -52,5 +57,17 @@ public interface CorrelationStore {
      * @return store size
      */
     int size();
-}
 
+    /**
+     * Shuts down the correlation store and releases resources.
+     *
+     * <p>
+     * Default implementation is a no-op. Implementations that
+     * manage background threads or scheduled executors should
+     * override this method.
+     * </p>
+     */
+    default void shutdown() {
+        // no-op by default
+    }
+}
