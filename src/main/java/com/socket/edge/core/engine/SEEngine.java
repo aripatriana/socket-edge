@@ -326,6 +326,8 @@ public class SEEngine extends RouteBuilder {
                             List<SocketChannel> candidates = replySocket.channelPool().activeChannels();
 
                             if (candidates != null && !candidates.isEmpty()) {
+                                log.warn("corrKey={} original channel inactive, falling back to alternate channel",
+                                        ctx.getCorrelationKey());
                                 candidates.get(0).send(ctx.getRawBytes());
                             } else {
                                 throw new IllegalStateException("No channel active for correlation=" + ctx.getCorrelationKey());

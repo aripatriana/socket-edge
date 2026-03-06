@@ -169,7 +169,7 @@ public class SystemBootstrap {
     /**
      * Global system configuration.
      */
-    public static Config sc;
+    private static volatile Config sc;
 
     /**
      * Configuration utility.
@@ -549,6 +549,13 @@ public class SystemBootstrap {
                 log.error("Error destroying transport register", e);
             }
 
+            try {
+                if (correlationStore != null) {
+                    correlationStore.shutdown();
+                }
+            } catch (Exception e) {
+                log.error("Error shutting down correlation store", e);
+            }
             log.info("Gracefully shutdown took {}ms", (System.currentTimeMillis() - start));
         }));
     }
@@ -582,5 +589,28 @@ public class SystemBootstrap {
      */
     public static boolean isCluster() {
         return cluster;
+    }
+
+    /**
+     * Returns the global system configuration.
+     *
+     * @return system configuration (never {@code null} after bootstrap)
+     */
+    public static Config getConfig() {
+        return sc;
+    }
+
+    /**
+     * Sets the global system configuration.
+     *
+     * <p>
+     * Intended for test use only. In production, configuration
+     * is loaded via {@link #loadSystemConfiguration()}.
+     * </p>
+     *
+     * @param config configuration to set
+     */
+    public static void setConfig(Config config) {
+        sc = config;
     }
 }

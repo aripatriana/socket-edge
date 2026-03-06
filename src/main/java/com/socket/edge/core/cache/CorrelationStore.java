@@ -52,5 +52,17 @@ public interface CorrelationStore {
      * @return store size
      */
     int size();
-}
 
+    /**
+     * Shuts down the correlation store and releases resources.
+     *
+     * <p>
+     * Default implementation is a no-op. Implementations that
+     * manage background threads or scheduled executors should
+     * override this method.
+     * </p>
+     */
+    default void shutdown() {
+        // no-op by default
+    }
+}

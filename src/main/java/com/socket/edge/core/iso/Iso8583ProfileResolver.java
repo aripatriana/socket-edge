@@ -4,7 +4,7 @@ import com.socket.edge.core.MessageContext;
 import com.socket.edge.constant.Direction;
 import com.socket.edge.model.Iso8583Profile;
 
-import static com.socket.edge.SystemBootstrap.sc;
+import static com.socket.edge.SystemBootstrap.getConfig;
 
 import java.util.stream.Collectors;
 
@@ -46,7 +46,7 @@ public final class Iso8583ProfileResolver {
             Iso8583Profile profile
     ) {
 
-        String mti = ctx.field(sc.getString("message.packager.key"));
+        String mti = ctx.field(getConfig().getString("message.packager.key"));
 
         for (Direction direction : Direction.values()) {
             if (profile.valuesFor(direction).contains(mti)) {

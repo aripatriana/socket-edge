@@ -165,6 +165,7 @@ public class CacheCorrelationStore implements CorrelationStore {
     /**
      * Shuts down the cleanup executor.
      */
+    @Override
     public void shutdown() {
         cleaner.shutdown();
     }
