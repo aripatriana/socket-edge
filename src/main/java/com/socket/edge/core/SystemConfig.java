@@ -95,20 +95,26 @@ public record SystemConfig(
 
     // --- Builder from Typesafe Config ---
 
+    /**
+     * Root namespace prefix.
+     * Matches the root tag in system.conf: system { ... }
+     */
+    private static final String ROOT = "system.";
+
     public static SystemConfig from(Config config, boolean cluster) {
         return new SystemConfig(
-                config.getString("server.name"),
+                config.getString(ROOT + "server.name"),
                 httpFrom(config),
                 tcpFrom(config),
-                config.getString("message.packager.key"),
-                config.getString("message.packager.path"),
-                config.getLong("engine.cache.ttl"),
-                config.getLong("engine.cache.max-size"),
+                config.getString(ROOT + "message.packager.key"),
+                config.getString(ROOT + "message.packager.path"),
+                config.getLong(ROOT + "engine.cache.ttl"),
+                config.getLong(ROOT + "engine.cache.max-size"),
                 cluster,
                 new SedaConfig(
-                        stageFrom(config, "engine.seda.receive"),
-                        stageFrom(config, "engine.seda.inbound"),
-                        stageFrom(config, "engine.seda.outbound")
+                        stageFrom(config, ROOT + "engine.seda.receive"),
+                        stageFrom(config, ROOT + "engine.seda.inbound"),
+                        stageFrom(config, ROOT + "engine.seda.outbound")
                 ),
                 lifecycleFrom(config),
                 metricsFrom(config),
@@ -120,24 +126,24 @@ public record SystemConfig(
 
     private static HttpConfig httpFrom(Config config) {
         return new HttpConfig(
-                config.getInt("server.http.port"),
-                config.getString("server.http.bind-address"),
-                config.getInt("server.http.idle-timeout"),
-                config.getString("server.http.auth.mode"),
-                config.getString("server.http.auth.username"),
-                config.getString("server.http.auth.password")
+                config.getInt(ROOT + "server.http.port"),
+                config.getString(ROOT + "server.http.bind-address"),
+                config.getInt(ROOT + "server.http.idle-timeout"),
+                config.getString(ROOT + "server.http.auth.mode"),
+                config.getString(ROOT + "server.http.auth.username"),
+                config.getString(ROOT + "server.http.auth.password")
         );
     }
 
     private static TcpConfig tcpFrom(Config config) {
         return new TcpConfig(
-                config.getInt("server.tcp.max-frame-length"),
-                config.getInt("server.tcp.idle-timeout"),
-                config.getInt("server.tcp.so-rcvbuf"),
-                config.getInt("server.tcp.so-sndbuf"),
-                config.getBoolean("server.tcp.so-keepalive"),
-                config.getBoolean("server.tcp.tcp-nodelay"),
-                config.getInt("server.tcp.connect-timeout")
+                config.getInt(ROOT + "server.tcp.max-frame-length"),
+                config.getInt(ROOT + "server.tcp.idle-timeout"),
+                config.getInt(ROOT + "server.tcp.so-rcvbuf"),
+                config.getInt(ROOT + "server.tcp.so-sndbuf"),
+                config.getBoolean(ROOT + "server.tcp.so-keepalive"),
+                config.getBoolean(ROOT + "server.tcp.tcp-nodelay"),
+                config.getInt(ROOT + "server.tcp.connect-timeout")
         );
     }
 
@@ -151,40 +157,40 @@ public record SystemConfig(
 
     private static LifecycleConfig lifecycleFrom(Config config) {
         return new LifecycleConfig(
-                config.getLong("engine.lifecycle.drain-timeout"),
-                config.getLong("engine.lifecycle.shutdown-grace-period")
+                config.getLong(ROOT + "engine.lifecycle.drain-timeout"),
+                config.getLong(ROOT + "engine.lifecycle.shutdown-grace-period")
         );
     }
 
     private static MetricsConfig metricsFrom(Config config) {
         return new MetricsConfig(
-                config.getString("engine.metrics.exporter"),
-                config.getInt("engine.metrics.prometheus-port"),
-                config.getString("engine.metrics.jmx-domain")
+                config.getString(ROOT + "engine.metrics.exporter"),
+                config.getInt(ROOT + "engine.metrics.prometheus-port"),
+                config.getString(ROOT + "engine.metrics.jmx-domain")
         );
     }
 
     private static HealthConfig healthFrom(Config config) {
         return new HealthConfig(
-                config.getString("engine.health.liveness-path"),
-                config.getString("engine.health.readiness-path"),
-                config.getLong("engine.health.startup-probe-delay")
+                config.getString(ROOT + "engine.health.liveness-path"),
+                config.getString(ROOT + "engine.health.readiness-path"),
+                config.getLong(ROOT + "engine.health.startup-probe-delay")
         );
     }
 
     private static PciConfig pciFrom(Config config) {
         return new PciConfig(
-                config.getBoolean("logging.pci.enabled"),
-                config.getStringList("logging.pci.mask-fields"),
-                config.getString("logging.pci.mask-strategy")
+                config.getBoolean(ROOT + "logging.pci.enabled"),
+                config.getStringList(ROOT + "logging.pci.mask-fields"),
+                config.getString(ROOT + "logging.pci.mask-strategy")
         );
     }
 
     private static AuditConfig auditFrom(Config config) {
         return new AuditConfig(
-                config.getBoolean("logging.audit.enabled"),
-                config.getString("logging.audit.path"),
-                config.getStringList("logging.audit.fields")
+                config.getBoolean(ROOT + "logging.audit.enabled"),
+                config.getString(ROOT + "logging.audit.path"),
+                config.getStringList(ROOT + "logging.audit.fields")
         );
     }
 }
