@@ -10,29 +10,52 @@ import io.netty.handler.codec.http.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Dispatches HTTP requests to registered {@link HttpServiceHandler}s.
+ *
+ * <p>v3.0: Routes keyed by {@code METHOD|PATH} to support
+ * same path with different methods (e.g. GET /config vs POST /config/reload).</p>
+ *
+ * @author Ari Patriana
+ * @since 3.0.0
+ */
 public class HttpDispatchHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-    private final Map<String, HttpServiceHandler> handlers;
+    private final Map<String, HttpServiceHandler> handlers = new ConcurrentHashMap<>();
 
     public HttpDispatchHandler(List<HttpServiceHandler> services) {
-        this.handlers = services.stream()
-                .collect(Collectors.toMap(
-                        HttpServiceHandler::path,
-                        Function.identity()
-                ));
+        for (HttpServiceHandler handler : services) {
+            String key = routeKey(handler.method(), handler.path());
+            handlers.put(key, handler);
+        }
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx,
-                                FullHttpRequest req) {
+    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) {
         QueryStringDecoder decoder = new QueryStringDecoder(req.uri());
-        HttpServiceHandler handler = handlers.get(decoder.path());
+        String path = decoder.path();
+        HttpMethod method = req.method();
+
+        // Try exact method match first
+        HttpServiceHandler handler = handlers.get(routeKey(method, path));
+
+        // Fallback: if GET handler exists but request is HEAD, use GET handler
+        if (handler == null && method == HttpMethod.HEAD) {
+            handler = handlers.get(routeKey(HttpMethod.GET, path));
+        }
 
         if (handler == null) {
-            send(ctx, HttpResponseStatus.NOT_FOUND, "NOT_FOUND");
+            // Check if path exists with different method → 405
+            boolean pathExists = handlers.keySet().stream()
+                    .anyMatch(k -> k.endsWith("|" + path));
+
+            if (pathExists) {
+                send(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED, "Method not allowed");
+            } else {
+                send(ctx, HttpResponseStatus.NOT_FOUND, "Not found");
+            }
             return;
         }
 
@@ -41,15 +64,17 @@ public class HttpDispatchHandler extends SimpleChannelInboundHandler<FullHttpReq
                 .addListener(ChannelFutureListener.CLOSE);
     }
 
-    private void send(ChannelHandlerContext ctx,
-                      HttpResponseStatus status,
-                      String body) {
+    private static String routeKey(HttpMethod method, String path) {
+        return method.name() + "|" + path;
+    }
 
+    private void send(ChannelHandlerContext ctx, HttpResponseStatus status, String body) {
         FullHttpResponse resp = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1,
-                status,
-                Unpooled.copiedBuffer(body, StandardCharsets.UTF_8)
-        );
+                HttpVersion.HTTP_1_1, status,
+                Unpooled.copiedBuffer(body, StandardCharsets.UTF_8));
+        resp.headers()
+                .set(HttpHeaderNames.CONTENT_TYPE, "text/plain")
+                .setInt(HttpHeaderNames.CONTENT_LENGTH, resp.content().readableBytes());
         ctx.writeAndFlush(resp)
                 .addListener(ChannelFutureListener.CLOSE);
     }

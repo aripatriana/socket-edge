@@ -294,19 +294,38 @@ public class SystemBootstrap {
                                   SocketManager socketManager) throws Exception {
         log.info("Start HTTP server..");
 
-        List<HttpServiceHandler> services = new ArrayList<>();
-
+        // Services
         ReloadCfgService reloadCfgService = new ReloadCfgService(
                 socketManager, metadataHolder, channelCfgProcessor);
         AdminHttpService adminHttpService = new AdminHttpService(socketManager);
         CorrelationCacheService correlationCacheService = new CorrelationCacheService(correlationStore);
 
-        new CommonServiceHandler(systemConfig, telemetryRegistry,
-                adminHttpService, correlationCacheService, socketManager, services);
-        new ConfigServiceHandler(reloadCfgService, services);
+        // Register all handlers — flat, explicit, no constructor side-effects
+        List<HttpServiceHandler> handlers = List.of(
+                // Health probes (configurable paths)
+                new HealthLivenessHandler(systemConfig.health().livenessPath()),
+                new HealthReadinessHandler(systemConfig.health().readinessPath(),
+                        socketManager, systemConfig.health().startupProbeDelay()),
+                new HealthCheckHandler(adminHttpService, systemConfig.clusterEnabled()),
 
-        // Pass full HttpConfig to NettyHttpServer
-        httpServer = new NettyHttpServer(systemConfig.serverName(), systemConfig.http(), services);
+                // Monitoring (GET)
+                new QueueHandler(telemetryRegistry),
+                new MetricsHandler(telemetryRegistry),
+                new StatusHandler(telemetryRegistry),
+                new CacheHandler(correlationCacheService),
+
+                // Socket control (POST)
+                new SocketControlHandler.StartHandler(adminHttpService),
+                new SocketControlHandler.StopHandler(adminHttpService),
+                new SocketControlHandler.RestartHandler(adminHttpService),
+
+                // Config management
+                new ConfigHandler.ValidateHandler(reloadCfgService),
+                new ConfigHandler.ReloadHandler(reloadCfgService)
+        );
+
+        httpServer = new NettyHttpServer(systemConfig.serverName(), systemConfig.http(),
+                new ArrayList<>(handlers));
         httpServer.start();
     }
 
