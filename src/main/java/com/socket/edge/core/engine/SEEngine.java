@@ -119,11 +119,13 @@ public class SEEngine extends RouteBuilder {
                 // 2. Resolve ISO profile and direction
                 .process(exchange -> {
                     MessageContext ctx = exchange.getIn().getBody(MessageContext.class);
-                    Iso8583Profile profile = metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
 
-                    if (ctx.field(config.packagerKey()) == null) {
-                        throw new IllegalArgumentException("Missing MTI (" + config.packagerKey() + ")");
-                    }
+                    // v3.0: resolve profile from multiple profiles assigned to channel
+                    Iso8583Profile profile = profileProcessor.resolveProfile(
+                            ctx,
+                            ctx.getChannelCfg().profiles(),
+                            metadataHolder.get().profiles()
+                    );
 
                     for (String de : profile.correlationFields()) {
                         if (ctx.field(de) == null) {
@@ -139,8 +141,8 @@ public class SEEngine extends RouteBuilder {
                 // 3. Build correlation key
                 .process(e -> {
                     MessageContext ctx = e.getIn().getBody(MessageContext.class);
-                    Iso8583Profile profile = metadataHolder.get().profiles().get(ctx.getChannelCfg().profile());
-                    String key = profileProcessor.buildCorrelationKey(ctx, profile);
+                    // v3.0: profile already resolved and set in step 2
+                    String key = profileProcessor.buildCorrelationKey(ctx, ctx.getProfile());
                     ctx.setCorrelationKey(key);
                 })
 

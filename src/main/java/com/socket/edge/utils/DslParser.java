@@ -102,7 +102,8 @@ public final class DslParser {
         String type = null;
         ServerChannel serverChannel = null;
         ClientChannel clientChannel = null;
-        String profile = null;
+        List<String> profiles = new ArrayList<>();
+        String unknownMti = "reject";
 
         List<String> lines = Arrays.stream(block.split("\n"))
                 .map(String::trim)
@@ -121,7 +122,17 @@ public final class DslParser {
             }
 
             else if (line.startsWith("profile")) {
-                profile = line.split("\\s+")[1];
+                // v3.0: parse comma-separated profile names
+                // e.g. "profile financial, network"
+                String raw = line.substring("profile".length()).trim();
+                profiles = Arrays.stream(raw.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
+            }
+
+            else if (line.startsWith("unknown-mti")) {
+                unknownMti = line.split("\\s+")[1].toLowerCase();
             }
 
             else if (line.startsWith("server")) {
@@ -149,8 +160,11 @@ public final class DslParser {
         if (clientChannel == null) {
             throw new IllegalStateException("channel.client block is required");
         }
+        if (profiles.isEmpty()) {
+            throw new IllegalStateException("channel.profile is required for channel: " + name);
+        }
 
-        return new ChannelCfg(name, type, serverChannel, clientChannel, profile);
+        return new ChannelCfg(name, type, serverChannel, clientChannel, profiles, unknownMti);
     }
 
     private int collectBlock(

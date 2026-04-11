@@ -1,6 +1,7 @@
 package com.socket.edge.core;
 
 import com.socket.edge.constant.Direction;
+import com.socket.edge.model.Iso8583Profile;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.model.SocketEndpoint;
 import com.socket.edge.utils.CommonUtil;
@@ -109,17 +110,46 @@ public class ChannelCfgProcessor {
                                 + " has invalid type: " + channel.type());
             }
 
-            /* 3. PROFILE MUST EXIST */
-            if (channel.profile() == null) {
+            /* 3. PROFILES MUST EXIST */
+            if (channel.profiles() == null || channel.profiles().isEmpty()) {
                 throw new IllegalStateException(
                         "Channel " + channel.name() + " has no profile");
             }
 
-            if (!metadata.profiles().containsKey(channel.profile())) {
+            for (String profileName : channel.profiles()) {
+                if (!metadata.profiles().containsKey(profileName)) {
+                    throw new IllegalStateException(
+                            "Channel " + channel.name()
+                                    + " references unknown profile: "
+                                    + profileName);
+                }
+            }
+
+            /* 3b. MTI MUST NOT OVERLAP ACROSS PROFILES IN SAME CHANNEL */
+            if (channel.profiles().size() > 1) {
+                Set<String> seenMtis = new HashSet<>();
+                for (String profileName : channel.profiles()) {
+                    Iso8583Profile p = metadata.profiles().get(profileName);
+                    for (Direction dir : Direction.values()) {
+                        for (String mti : p.valuesFor(dir)) {
+                            if (!seenMtis.add(mti)) {
+                                throw new IllegalStateException(
+                                        "Duplicate MTI " + mti
+                                                + " across profiles in channel "
+                                                + channel.name());
+                            }
+                        }
+                    }
+                }
+            }
+
+            /* 3c. UNKNOWN-MTI MUST BE VALID */
+            if (channel.unknownMti() != null
+                    && !"reject".equalsIgnoreCase(channel.unknownMti())) {
                 throw new IllegalStateException(
                         "Channel " + channel.name()
-                                + " references unknown profile: "
-                                + channel.profile());
+                                + " has invalid unknown-mti: " + channel.unknownMti()
+                                + ". Supported: reject");
             }
 
             /* 4. MUST HAVE SERVER OR CLIENT */
