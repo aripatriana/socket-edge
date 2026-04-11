@@ -182,6 +182,12 @@
             <version>3.25.3</version>
             <scope>test</scope>
         </dependency>
+        <!-- Caffeine - high performance in-memory cache -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.1.8</version>
+        </dependency>
     </dependencies>
 
     <build>

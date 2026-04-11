@@ -7,9 +7,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.socket.edge.constant.RolePreference;
 import com.socket.edge.constant.ServerMode;
 import com.socket.edge.core.*;
-import com.socket.edge.core.cache.CacheCorrelationStore;
 import com.socket.edge.core.cache.CorrelationStore;
-import com.socket.edge.core.cache.HazelcastCorrelationStore;
+import com.socket.edge.core.cache.CorrelationStoreFactory;
 import com.socket.edge.core.cluster.ClusterListener;
 import com.socket.edge.core.cluster.ClusterManager;
 import com.socket.edge.core.cluster.SocketClusterAdapter;
@@ -185,8 +184,9 @@ public class SystemBootstrap {
                 Path.of(System.getProperty("base.dir"), "conf", "channel.conf"));
         metadataHolder = new MetadataHolder(metadata);
 
-        // 4. Correlation store
-        correlationStore = new CacheCorrelationStore(systemConfig.cacheTtl());
+        // 4. Correlation store (auto-select: standalone = Caffeine, cluster = Hazelcast)
+        correlationStore = CorrelationStoreFactory.standalone(
+                systemConfig.cacheTtl(), systemConfig.cacheMaxSize());
 
         // 5. Camel context
         camelContext = new DefaultCamelContext();
@@ -281,9 +281,9 @@ public class SystemBootstrap {
                 ? rawConfig.getString("cluster.cluster-name") : "socket-edge-cluster";
         ClusterManager clusterManager = new ClusterManager(channel, new RolePolicy(prefer, strict), listener, clusterName);
 
-        // Override correlation store with Hazelcast-backed
-        correlationStore = new HazelcastCorrelationStore(
-                hazelcast.getMap("correlation-store"), systemConfig.cacheTtl());
+        // Override correlation store with Hazelcast-backed for cluster mode
+        correlationStore = CorrelationStoreFactory.cluster(
+                hazelcast, "correlation-store", systemConfig.cacheTtl());
         seEngine.bindCorrelationStore(correlationStore);
 
         log.warn("Override correlation store with hazelcast-backed store for cluster mode");
