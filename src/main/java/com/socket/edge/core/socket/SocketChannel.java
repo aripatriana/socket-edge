@@ -7,6 +7,7 @@ import com.socket.edge.model.SocketEndpoint;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,60 +18,26 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Wrapper around a Netty {@link Channel} enriched with endpoint metadata,
  * load awareness, and telemetry support.
  *
- * <p>{@code SocketChannel} represents a single logical communication channel
- * belonging to an {@link AbstractSocket}. It provides:
+ * <p>v3.0 changes:
  * <ul>
- *   <li>Inflight request tracking ({@link LoadAware})</li>
- *   <li>Weighted and priority-based selection ({@link WeightedCandidate})</li>
- *   <li>Association with {@link SocketEndpoint}</li>
- *   <li>Integration with {@link SocketTelemetry}</li>
- * </ul>
- *
- * <p>This abstraction allows routing and load-balancing decisions
- * to be made independently of the underlying Netty channel.</p>
- *
- * <p>Thread safety:
- * <ul>
- *   <li>Inflight counter uses {@link AtomicInteger}</li>
- *   <li>Channel lifecycle is managed by Netty</li>
- *   <li>Endpoint and telemetry references may be updated at runtime</li>
+ *   <li>Fixed: {@code send()} no longer blocks event loop with {@code awaitUninterruptibly()}</li>
+ *   <li>Fixed: PCI-DSS compliant logging (no raw message content)</li>
+ *   <li>Improved: fail tracking with proper cooldown mechanism</li>
  * </ul>
  *
  * @author Ari Patriana
- * @since 1.0.0
+ * @since 3.0.0
  */
 public class SocketChannel implements WeightedCandidate, LoadAware {
 
     private static final Logger log = LoggerFactory.getLogger(SocketChannel.class);
 
-    /**
-     * Netty channel identifier.
-     */
     private final ChannelId channelId;
-
-    /**
-     * Underlying Netty channel.
-     */
     private final Channel channel;
-
-    /**
-     * Number of in-flight operations on this channel.
-     */
     private final AtomicInteger inflight = new AtomicInteger(0);
-
-    /**
-     * Owning socket identifier.
-     */
     private final String socketId;
 
-    /**
-     * Associated socket endpoint.
-     */
     private volatile SocketEndpoint socketEndpoint;
-
-    /**
-     * Telemetry associated with this channel.
-     */
     private volatile SocketTelemetry socketTelemetry;
 
     private final AtomicInteger failCount = new AtomicInteger(0);
@@ -79,14 +46,6 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
     private final int maxFails;
     private final int failTimeout;
 
-    /**
-     * Creates a new socket channel wrapper.
-     *
-     * @param socketId        owning socket identifier
-     * @param channel         Netty channel
-     * @param socketEndpoint  endpoint associated with this channel
-     * @param socketTelemetry telemetry instance
-     */
     public SocketChannel(
             String socketId,
             Channel channel,
@@ -99,43 +58,21 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
         this.socketEndpoint = socketEndpoint;
         this.socketTelemetry = socketTelemetry;
         this.maxFails = socketEndpoint.maxfails();
-        this.failTimeout =socketEndpoint.failTimeout();
+        this.failTimeout = socketEndpoint.failTimeout();
     }
 
-    /**
-     * Returns the associated socket endpoint.
-     *
-     * @return socket endpoint
-     */
     public SocketEndpoint getSocketEndpoint() {
         return socketEndpoint;
     }
 
-    /**
-     * Updates the socket endpoint associated with this channel.
-     *
-     * <p>Typically invoked when endpoint configuration is reloaded.</p>
-     *
-     * @param socketEndpoint new socket endpoint
-     */
     public void setSocketEndpoint(SocketEndpoint socketEndpoint) {
         this.socketEndpoint = socketEndpoint;
     }
 
-    /**
-     * Returns the underlying Netty channel.
-     *
-     * @return Netty channel
-     */
     public Channel channel() {
         return channel;
     }
 
-    /**
-     * Returns the Netty channel identifier.
-     *
-     * @return channel id
-     */
     public ChannelId channelId() {
         return channelId;
     }
@@ -143,8 +80,11 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
     /**
      * Sends raw bytes through this channel.
      *
+     * <p>v3.0: Non-blocking write. Does NOT call {@code awaitUninterruptibly()}
+     * which would block the Netty event loop and cause cascading timeouts.</p>
+     *
      * @param bytes payload to send
-     * @return {@code true} if the send was initiated, {@code false} otherwise
+     * @return {@code true} if the write was initiated successfully
      */
     public boolean send(byte[] bytes) {
         Channel ch = this.channel;
@@ -156,55 +96,39 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
         try {
             ChannelFuture future = ch.writeAndFlush(Unpooled.wrappedBuffer(bytes));
 
-            future.awaitUninterruptibly();
+            future.addListener((ChannelFutureListener) f -> {
+                if (!f.isSuccess()) {
+                    log.warn("{} send failed: {}", socketId,
+                            f.cause() != null ? f.cause().getMessage() : "unknown");
+                }
+            });
 
-            if (!future.isSuccess()) {
-                log.warn("{} send failed", socketId, future.cause());
-                return false;
-            }
-
-            if (log.isInfoEnabled()) {
-                log.info("{} send {}", socketId, new String(bytes));
+            if (log.isDebugEnabled()) {
+                log.debug("{} send {} bytes", socketId, bytes.length);
             }
 
             return true;
         } catch (Exception e) {
-            log.error("{} send exception", socketId, e);
+            log.error("{} send exception: {}", socketId, e.getMessage());
             return false;
         }
     }
 
-    /**
-     * Returns the current number of in-flight operations.
-     *
-     * @return inflight count
-     */
     @Override
     public int inflight() {
         return inflight.get();
     }
 
-    /**
-     * Increments the in-flight operation counter.
-     */
     @Override
     public void increment() {
         inflight.incrementAndGet();
     }
 
-    /**
-     * Decrements the in-flight operation counter.
-     */
     @Override
     public void decrement() {
         inflight.decrementAndGet();
     }
 
-    /**
-     * Indicates whether the channel is active.
-     *
-     * @return {@code true} if active
-     */
     public boolean isActive() {
         return channel.isActive();
     }
@@ -223,34 +147,19 @@ public class SocketChannel implements WeightedCandidate, LoadAware {
 
         if (fails >= maxFails) {
             unhealthyUntil = now + failTimeout;
-            failCount.set(0); // reset counter after mark unhealthy
+            failCount.set(0);
         }
     }
 
-    /**
-     * Closes the underlying channel.
-     *
-     * @return future representing the close operation
-     */
     public ChannelFuture close() {
         return channel.close();
     }
 
-    /**
-     * Returns the weight of this channel for load-balancing decisions.
-     *
-     * @return channel weight
-     */
     @Override
     public int getWeight() {
         return socketEndpoint.getWeight();
     }
 
-    /**
-     * Returns the priority of this channel for routing decisions.
-     *
-     * @return channel priority
-     */
     @Override
     public int getPriority() {
         return socketEndpoint.getPriority();

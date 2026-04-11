@@ -13,21 +13,39 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.util.Map;
 
-public final class ClientInboundHandler
-        extends ChannelInboundHandlerAdapter {
+/**
+ * Client-side Netty inbound handler for ISO 8583 message processing.
+ *
+ * <p>v3.0 changes:
+ * <ul>
+ *   <li>Removed {@code SocketManager} dependency</li>
+ *   <li>Lifecycle orchestration delegated to {@link SocketLifecycleCoordinator}</li>
+ *   <li>Fixed: PCI-DSS compliant logging</li>
+ *   <li>Fixed: proper pattern matching with early return</li>
+ * </ul>
+ *
+ * @author Ari Patriana
+ * @since 3.0.0
+ */
+public final class ClientInboundHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(ClientInboundHandler.class);
 
-    private SocketManager sm;
     private final DefaultClientSocket clientSocket;
-    private IsoParser isoParser;
-    private MessageContextProcess messageContextProcess;
+    private final IsoParser isoParser;
+    private final MessageContextProcess messageContextProcess;
+    private final SocketLifecycleCoordinator coordinator;
 
-    public ClientInboundHandler(SocketManager sm, DefaultClientSocket clientSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
-        this.sm = sm;
+    public ClientInboundHandler(
+            DefaultClientSocket clientSocket,
+            IsoParser isoParser,
+            MessageContextProcess messageContextProcess,
+            SocketLifecycleCoordinator coordinator
+    ) {
         this.clientSocket = clientSocket;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;
+        this.coordinator = coordinator;
     }
 
     @Override
@@ -41,16 +59,17 @@ public final class ClientInboundHandler
             return;
         }
 
+        // v3.0 FIX: proper pattern matching with early return
+        if (!(msg instanceof byte[] rawBytes)) {
+            log.warn("Unsupported message type: {}", msg.getClass());
+            return;
+        }
+
         try {
             socketChannel.onMessage();
 
-            if (!(msg instanceof byte[])) {
-                log.warn("Unsupported message type: {}", msg.getClass());
-            }
-
-            byte[] rawBytes = (byte[]) msg;
-            if (log.isInfoEnabled()) {
-                log.info("{} read {}", clientSocket.getId(), new String(rawBytes));
+            if (log.isDebugEnabled()) {
+                log.debug("{} received {} bytes", clientSocket.getId(), rawBytes.length);
             }
 
             Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
@@ -95,26 +114,15 @@ public final class ClientInboundHandler
             return;
         }
 
-        AbstractSocket socketServer = sm.getSocketServerByName(clientSocket.getName());
-        if (socketServer == null) {
-            log.warn("Skip channelActive: No server socket found for client socket {}", clientSocket.getId());
-            clientSocket.restart();
-            return;
-        }
-
-        int totalAvailableChannels = socketServer.channelPool().availableChannels().size();
-        if (totalAvailableChannels == 0) {
-            log.warn("No available channels in server socket {} for client socket {}", socketServer.getId(), clientSocket.getId());
-            clientSocket.restart();
-        } else {
-            clientSocket.scheduleReconnect();
-        }
         socketChannel.onDisconnect();
+
+        // v3.0: delegate lifecycle to coordinator
+        coordinator.onClientChannelInactive(clientSocket);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("{} exception occured {}", clientSocket.getId(), cause);
+        log.error("{} exception occurred: {}", clientSocket.getId(), cause.getMessage());
         ctx.close();
     }
 }

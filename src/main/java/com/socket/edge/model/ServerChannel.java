@@ -1,7 +1,7 @@
 package com.socket.edge.model;
 
 import com.socket.edge.constant.ServerChannelField;
-import com.socket.edge.constant.SockeEndpointField;
+import com.socket.edge.constant.SocketEndpointField;
 import com.socket.edge.model.helper.ClientChannelDiff;
 import com.socket.edge.model.helper.FieldDiff;
 import com.socket.edge.model.helper.ServerChannelDiff;

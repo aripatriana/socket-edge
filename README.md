@@ -1,93 +1,139 @@
-# socket-edge
+# Socket Edge v3.0.0
 
+## ISO 8583 TCP Load Balancer — High Performance Socket System
 
+Socket Edge is a Netty-based ISO 8583 TCP message load balancer designed for payment processing environments. It supports dual-role (client & server), multiport, multisession, and active-passive clustering.
 
-## Getting started
+## What's New in v3.0
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### Architecture Refactor
+- **Eliminated circular dependency** between `SocketFactory` and `SocketManager`
+- **Removed all static global state** — `SystemBootstrap.getConfig()` and `isCluster()` replaced with injectable `SystemConfig` record
+- **New `ChannelGroup` abstraction** — explicit model for server↔client socket pairing
+- **New `ChannelGroupRegistry`** — O(1) lookup replacing implicit name-based queries
+- **New `SocketLifecycleCoordinator`** — extracted lifecycle orchestration from Netty handlers
+- **Slim `SystemBootstrap`** — pure composition root with linear dependency graph
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Critical Bug Fixes
+- **Fixed: OOM DoS vulnerability** — `LengthFieldBasedFrameDecoder` limited to 8KB (was `Integer.MAX_VALUE`)
+- **Fixed: Blocking event loop** — `SocketChannel.send()` now non-blocking (removed `awaitUninterruptibly()`)
+- **Fixed: Race condition** in `ServerInboundHandler.channelActive()` — async connect no longer followed by sync check
+- **Fixed: Dead code** — proper pattern matching with early return in `channelRead()`
+- **Fixed: Correlation key collision** — keys now use `field=value` format to prevent ambiguity
+- **Fixed: Hardcoded ISO fields** — `IsoParser` now extracts ALL fields dynamically
+- **Fixed: Inflight counter leak** — proper decrement in error/finally paths
 
-## Add your files
+### Code Quality
+- Fixed typo: `SockeEndpointField` → `SocketEndpointField`
+- Fixed typo: `validIPAddresss` → `validIPAddress`
+- Fixed typo: `occured` → `occurred`
+- Removed hardcoded developer Windows path
+- PCI-DSS safe logging (no raw ISO message content)
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Dependency Graph (No Cycles)
 
 ```
-cd existing_repo
-git remote add origin https://bo-scm-dev.jalin.co.id/digitalsolutions/jalin-esb-rest-adapter.git
-git branch -M master
-git push -uf origin master
+SystemConfig (immutable record)
+    ↓
+ChannelGroupRegistry (pure registry)
+    ↓
+SocketLifecycleCoordinator (lifecycle orchestration)
+    ↓
+SocketFactory (socket creation)
+    ↓
+SocketManager (socket lifecycle)
+    ↓
+SEEngine (message routing — late-bind)
 ```
 
-## Integrate with your tools
+## Quick Start
 
-- [ ] [Set up project integrations](https://bo-scm-dev.jalin.co.id/digitalsolutions/jalin-esb-rest-adapter/-/settings/integrations)
+```bash
+# Build
+mvn clean package -DskipTests
 
-## Collaborate with your team
+# Run standalone
+java -Dserver.mode=standalone \
+     -Dbase.dir=/path/to/resources \
+     -jar target/socket-edge-3.0.0.jar
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+# Run cluster
+java -Dserver.mode=cluster \
+     -Dbase.dir=/path/to/resources \
+     -jar target/socket-edge-3.0.0.jar
+```
 
-## Test and Deploy
+## Configuration
 
-Use the built-in continuous integration in GitLab.
+### system.conf
+Core runtime configuration including server port, ISO packager, cache TTL, and SEDA pipeline settings.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### channel.conf
+Channel definitions using custom DSL:
+```
+channel {
+    name fello
+    type tcp
 
-***
+    server {
+        listen 127.0.0.1 27000
+        pool 127.0.0.1
+    }
 
-# Editing this README
+    client {
+        connect 127.0.0.1 26000 weight 100 priority 0 maxfails 3 failtimeout 30
+        strategy roundrobin
+    }
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+    profile iso8583
+}
 
-## Suggestions for a good README
+profile iso8583 {
+    direction inbound {
+        de1 in ["0800", "0200", "0420", "0421"]
+    }
+    direction outbound {
+        de1 in ["0810", "0210", "0430"]
+    }
+    correlation {
+        de2
+        de11
+        de37
+        de13
+        de12
+    }
+}
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### cluster.conf
+Cluster configuration for active-passive HA using JGroups + Hazelcast.
 
-## Name
-Choose a self-explaining name for your project.
+## HTTP Admin API
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /healthcheck` | Health check with cluster role |
+| `GET /socket/status?id=all` | Socket runtime state |
+| `GET /socket/queues?id=all` | Message queue depths |
+| `GET /socket/metrics?id=all` | Latency & TPS metrics |
+| `GET /socket/start?id=<id>` | Start socket |
+| `GET /socket/stop?id=<id>` | Stop socket |
+| `GET /socket/restart?id=<id>` | Restart socket |
+| `GET /config/validate` | Validate channel.conf changes |
+| `GET /config/reload` | Hot-reload channel.conf |
+| `GET /count-cache` | Correlation cache size |
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Tech Stack
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **Java 21** (Virtual Threads)
+- **Netty 4.x** (TCP I/O)
+- **Apache Camel** (SEDA routing)
+- **jPOS** (ISO 8583 parsing)
+- **JGroups** (Cluster leader election)
+- **Hazelcast** (Distributed correlation store)
+- **Micrometer** (Metrics/Telemetry)
+- **Typesafe Config** (Configuration)
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## Author
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium serverChannel for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Ari Patriana — @aripatrianadev

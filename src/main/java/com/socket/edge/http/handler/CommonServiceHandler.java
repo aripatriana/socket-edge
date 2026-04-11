@@ -1,6 +1,6 @@
 package com.socket.edge.http.handler;
 
-import com.socket.edge.SystemBootstrap;
+
 import com.socket.edge.constant.NodeRole;
 import com.socket.edge.core.TelemetryRegistry;
 import com.socket.edge.http.service.AdminHttpService;
@@ -138,7 +138,7 @@ public class CommonServiceHandler {
             HttpResponseStatus httpResponseStatus = HttpResponseStatus.OK;
             try {
                 NodeRole role = adminHttpService.getNodeRole();
-                if (SystemBootstrap.isCluster() && role != NodeRole.MASTER) {
+                if (role != NodeRole.MASTER) {
                     httpResponseStatus = HttpResponseStatus.UNAUTHORIZED;
                     result.put("status", "UNAUTHORIZED");
                 } else {

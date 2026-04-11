@@ -16,7 +16,7 @@ public class AdminHttpService {
         this.socketManager = socketManager;
     }
 
-    public void startSocketById(String id) throws InterruptedException {
+    public void startSocketById(String id) {
         log.info("Start socket by id {}", id);
         socketManager.startById(id);
     }
@@ -26,7 +26,7 @@ public class AdminHttpService {
         socketManager.startByName(name);
     }
 
-    public void stopSocketById(String id) throws InterruptedException {
+    public void stopSocketById(String id) {
         log.info("Stop socket by id {}", id);
         socketManager.stopById(id);
     }
@@ -46,17 +46,17 @@ public class AdminHttpService {
         socketManager.stopAll();
     }
 
-    public void restartSocketById(String id) throws InterruptedException {
+    public void restartSocketById(String id) {
         log.info("Restart socket by id {}", id);
-        socketManager.restart(id);
+        socketManager.restartById(id);
     }
 
-    public void restartSocketByName(String name) throws InterruptedException {
+    public void restartSocketByName(String name) {
         log.info("Restart socket by name {}", name);
         socketManager.restartByName(name);
     }
 
-    public void restartAll() throws InterruptedException {
+    public void restartAll() {
         log.info("Restart all socket");
         socketManager.restartAll();
     }

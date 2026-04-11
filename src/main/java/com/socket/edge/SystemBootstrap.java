@@ -15,8 +15,7 @@ import com.socket.edge.core.cluster.ClusterManager;
 import com.socket.edge.core.cluster.SocketClusterAdapter;
 import com.socket.edge.core.engine.SEEngine;
 import com.socket.edge.core.iso.Iso8583ProfileResolver;
-import com.socket.edge.core.socket.SocketFactory;
-import com.socket.edge.core.socket.SocketManager;
+import com.socket.edge.core.socket.*;
 import com.socket.edge.core.transport.TransportProvider;
 import com.socket.edge.core.transport.TransportRegister;
 import com.socket.edge.http.NettyHttpServer;
@@ -27,7 +26,6 @@ import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Metadata;
 import com.socket.edge.model.RolePolicy;
-import com.socket.edge.utils.ConfigUtil;
 import com.socket.edge.utils.IsoParser;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -53,177 +51,58 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 /**
  * Application bootstrap and composition root.
  *
- * <p>{@code SystemBootstrap} is responsible for initializing and wiring
- * all core components of the Socket Edge system, including:
+ * <p>v3.0 changes:
  * <ul>
- *   <li>System and cluster configuration loading</li>
- *   <li>Channel and ISO 8583 metadata processing</li>
- *   <li>Routing engine (Apache Camel)</li>
- *   <li>Socket layer (Netty-based)</li>
- *   <li>Transport providers</li>
- *   <li>Cluster management (optional)</li>
- *   <li>HTTP admin and monitoring services</li>
+ *   <li>No static fields — all state is instance-based</li>
+ *   <li>No circular dependencies — linear initialization order</li>
+ *   <li>Uses {@link SystemConfig} instead of raw Config with static access</li>
+ *   <li>Uses {@link ChannelGroupRegistry} for explicit server↔client tracking</li>
+ *   <li>Uses {@link SocketLifecycleCoordinator} for handler lifecycle coordination</li>
+ *   <li>Removed hardcoded developer path</li>
  * </ul>
  *
- * <p>The bootstrap supports two operating modes:
- * <ul>
- *   <li>{@link ServerMode#STANDALONE} – single-node execution</li>
- *   <li>{@link ServerMode#CLUSTER} – active–passive clustered execution</li>
- * </ul>
- *
- * <p>Startup flow (high-level):
- * <ol>
- *   <li>Load system and cluster configuration</li>
- *   <li>Initialize core objects and registries</li>
- *   <li>Load channel and ISO metadata</li>
- *   <li>Start routing engine</li>
- *   <li>Initialize sockets (and cluster manager if enabled)</li>
- *   <li>Start HTTP server</li>
- *   <li>Register shutdown hooks</li>
- * </ol>
- *
- * <p>This class should be instantiated once and acts as the main
- * lifecycle owner of the application.</p>
+ * <p>Dependency graph (top-down, no cycles):
+ * <pre>
+ *   SystemConfig (immutable)
+ *       ↓
+ *   ChannelGroupRegistry (pure registry)
+ *       ↓
+ *   SocketLifecycleCoordinator (depends on: Registry)
+ *       ↓
+ *   SocketFactory (depends on: Config, Coordinator, Telemetry, Parser)
+ *       ↓
+ *   SocketManager (depends on: Factory, TransportRegister, Registry)
+ *       ↓
+ *   SEEngine (depends on: SocketManager via late-bind)
+ * </pre>
  *
  * @author Ari Patriana
- * @since 1.0.0
+ * @since 3.0.0
  */
 public class SystemBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(SystemBootstrap.class);
 
-    /**
-     * ISO 8583 profile resolver.
-     */
-    private Iso8583ProfileResolver profileProcessor;
-
-    /**
-     * Channel configuration selector.
-     */
-    private ChannelCfgSelector channelCfgSelector;
-
-    /**
-     * Transport provider resolver.
-     */
-    private TransportProvider transportProvider;
-
-    /**
-     * Transport register for lifecycle management.
-     */
-    private TransportRegister transportRegister;
-
-    /**
-     * Correlation store for request–response matching.
-     */
-    private CorrelationStore correlationStore;
-
-    /**
-     * Socket manager controlling socket lifecycle.
-     */
-    private SocketManager socketManager;
-
-    /**
-     * Socket factory for creating socket instances.
-     */
-    private SocketFactory socketFactory;
-
-    /**
-     * Message dispatcher into Camel routes.
-     */
-    private MessageContextProcess messageContextProcess;
-
-    /**
-     * ISO packager used for parsing ISO 8583 messages.
-     */
-    private ISOPackager packager;
-
-    /**
-     * ISO message parser.
-     */
-    private IsoParser parser;
-
-    /**
-     * Channel configuration processor.
-     */
-    private ChannelCfgProcessor channelCfgProcessor;
-
-    /**
-     * Apache Camel context.
-     */
-    private CamelContext camelContext;
-
-    /**
-     * Runtime metadata holder.
-     */
-    private MetadataHolder metadataHolder;
-
-    /**
-     * Embedded HTTP server for admin and monitoring endpoints.
-     */
-    private NettyHttpServer httpServer;
-
-    /**
-     * Global system configuration.
-     */
-    private static volatile Config sc;
-
-    /**
-     * Configuration utility.
-     */
-    private final ConfigUtil cu = new ConfigUtil();
-
-    /**
-     * Telemetry registry for metrics and monitoring.
-     */
-    private TelemetryRegistry telemetryRegistry;
-
-    /**
-     * Core routing engine.
-     */
-    private SEEngine SEEngine;
-
-    /**
-     * Indicates whether cluster mode is enabled.
-     */
-    private static boolean cluster = false;
-
-    /**
-     * Server operating mode.
-     */
+    private SystemConfig systemConfig;
+    private Config rawConfig;
     private ServerMode serverMode;
+    private CamelContext camelContext;
+    private SocketManager socketManager;
+    private TransportRegister transportRegister;
+    private CorrelationStore correlationStore;
+    private NettyHttpServer httpServer;
+    private MetadataHolder metadataHolder;
+    private SEEngine seEngine;
 
-    static {
-        /*
-         * Default base directory for local testing.
-         */
-        if (System.getProperty("base.dir") == null) {
-            System.setProperty(
-                    "base.dir",
-                    "C:\\Users\\ari.patriana\\DATA\\Project\\Github\\socket-edge\\src\\main\\resources"
-            );
-        }
-    }
-
-    /**
-     * Creates a new SystemBootstrap instance.
-     *
-     * <p>The server mode is determined by the system property
-     * {@code server.mode}.</p>
-     *
-     * @param args application arguments
-     */
     public SystemBootstrap(String[] args) {
         String mode = System.getProperty("server.mode");
-
         if (mode == null || mode.isBlank()) {
             throw new IllegalStateException(
                     "System property 'server.mode' is required. " +
-                            "Use: -Dserver.mode=standalone | cluster"
-            );
+                            "Use: -Dserver.mode=standalone | cluster");
         }
 
         try {
@@ -231,386 +110,253 @@ public class SystemBootstrap {
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException(
                     "Invalid server.mode value: '" + mode + "'. " +
-                            "Allowed values: STANDALONE, CLUSTER",
-                    e
-            );
+                            "Allowed values: STANDALONE, CLUSTER", e);
         }
-
-        cluster = serverMode == ServerMode.CLUSTER;
     }
 
-    /**
-     * Loads and validates system and cluster configuration files.
-     *
-     * <p>This method performs schema validation and merges
-     * system and cluster configuration when cluster mode
-     * is enabled.</p>
-     */
     public void loadSystemConfiguration() {
         log.info("Load system configuration..");
         String baseDir = System.getProperty("base.dir");
         if (baseDir == null || baseDir.isBlank()) {
-            throw new IllegalStateException("System property 'base.dir' is not set. Please provide -Dbase.dir=<path>");
+            throw new IllegalStateException("System property 'base.dir' is not set.");
         }
 
         Path confDir = Path.of(baseDir, "conf");
         Path systemConf = confDir.resolve("system.conf");
-        Path clusterConf = confDir.resolve("cluster.conf");
-
         Path systemSchema = confDir.resolve("schema/schema-system.conf");
-        Path clusterSchema = confDir.resolve("schema/schema-cluster.conf");
 
         if (!Files.exists(systemConf)) {
             throw new IllegalStateException("system.conf not found: " + systemConf);
         }
-
         if (!Files.exists(systemSchema)) {
             throw new IllegalStateException("schema-system.conf not found: " + systemSchema);
         }
 
-        Config systemConfig = ConfigFactory.parseFile(systemConf.toFile()).resolve();
-        Config systemSchemaConfig = ConfigFactory.parseFile(systemSchema.toFile());
+        Config sysConfig = ConfigFactory.parseFile(systemConf.toFile()).resolve();
+        sysConfig.checkValid(ConfigFactory.parseFile(systemSchema.toFile()));
 
-        systemConfig.checkValid(systemSchemaConfig);
-
-        Config finalConfig = systemConfig;
+        Config finalConfig = sysConfig;
+        boolean cluster = serverMode == ServerMode.CLUSTER;
 
         if (cluster) {
+            Path clusterConf = confDir.resolve("cluster.conf");
+            Path clusterSchema = confDir.resolve("schema/schema-cluster.conf");
+
             if (!Files.exists(clusterConf)) {
-                throw new IllegalStateException(
-                        "cluster.enabled=true but cluster.conf not found: " + clusterConf
-                );
+                throw new IllegalStateException("cluster.conf not found: " + clusterConf);
             }
             if (!Files.exists(clusterSchema)) {
-                throw new IllegalStateException(
-                        "schema-cluster.conf not found: " + clusterSchema
-                );
+                throw new IllegalStateException("schema-cluster.conf not found: " + clusterSchema);
             }
 
             Config clusterConfig = ConfigFactory.parseFile(clusterConf.toFile()).resolve();
-            Config clusterSchemaConfig = ConfigFactory.parseFile(clusterSchema.toFile());
-
-            clusterConfig.checkValid(clusterSchemaConfig);
-
-            finalConfig = clusterConfig
-                    .withFallback(systemConfig)
-                    .resolve();
+            clusterConfig.checkValid(ConfigFactory.parseFile(clusterSchema.toFile()));
+            finalConfig = clusterConfig.withFallback(sysConfig).resolve();
 
             Path jgroupPath = Path.of(baseDir, finalConfig.getString("cluster.jgroup-path"));
             if (!Files.exists(jgroupPath)) {
-                throw new IllegalStateException(
-                        "cluster.enabled=true but jgroups.xml not found: "
-                                + jgroupPath.toAbsolutePath()
-                );
+                throw new IllegalStateException("jgroups.xml not found: " + jgroupPath);
             }
         }
 
-        this.sc = finalConfig;
+        this.rawConfig = finalConfig;
+        this.systemConfig = SystemConfig.from(finalConfig, cluster);
     }
 
-    /**
-     * Initializes core runtime objects and registries.
-     */
-    public void initializeObject() {
+    public void initialize() throws Exception {
         log.info("System initialization..");
-        profileProcessor = new Iso8583ProfileResolver();
-        transportProvider = new TransportProvider();
-        transportRegister = new TransportRegister(transportProvider);
-        correlationStore = new CacheCorrelationStore(cu.getInt("engine.cache.ttl", 30000));
-        channelCfgProcessor = new ChannelCfgProcessor();
-        channelCfgSelector = new ChannelCfgSelector();
 
-        boolean enableJmxMeter = Boolean.parseBoolean(
-                System.getProperty("jmx.meter.enabled", "false")
-        );
+        // 1. Telemetry
+        TelemetryRegistry telemetryRegistry = createTelemetryRegistry();
 
-        MeterRegistry meterRegistry = null;
-        if (enableJmxMeter) {
-            log.info("JMX Meter Registry ENABLED");
-
-            JmxConfig config = new JmxConfig() {
-                @Override
-                public String get(String key) {
-                    if ("jmx.domain".equals(key)) {
-                        return "socket.edge";
-                    }
-                    return null;
-                }
-            };
-            meterRegistry = new JmxMeterRegistry(config, Clock.SYSTEM);
-        } else {
-            log.info("JMX Meter Registry DISABLED (using SimpleMeterRegistry)");
-            meterRegistry = new SimpleMeterRegistry();
-        }
-        telemetryRegistry = new TelemetryRegistry(meterRegistry);
-    }
-
-    /**
-     * Loads channel configuration, ISO packager, and metadata.
-     */
-    public void loadChannelConfiguration() throws IOException {
-        log.info("Load channel configuration..");
-
-        Path packagerPath = Path.of(System.getProperty("base.dir"),sc.getString("message.packager.path"));
+        // 2. ISO Packager & Parser
+        Path packagerPath = Path.of(System.getProperty("base.dir"), systemConfig.packagerPath());
+        ISOPackager packager;
         try (InputStream is = Files.newInputStream(packagerPath)) {
             packager = new GenericPackager(is);
         } catch (ISOException | IOException e) {
             throw new IllegalStateException("Failed to load ISO packager", e);
         }
-        parser = new IsoParser(packager);
-        Metadata metadata = channelCfgProcessor.process(Path.of(System.getProperty("base.dir"),"conf", "channel.conf"));
+        IsoParser parser = new IsoParser(packager);
+
+        // 3. Channel config & metadata
+        ChannelCfgProcessor channelCfgProcessor = new ChannelCfgProcessor();
+        Metadata metadata = channelCfgProcessor.process(
+                Path.of(System.getProperty("base.dir"), "conf", "channel.conf"));
         metadataHolder = new MetadataHolder(metadata);
-    }
 
-    /**
-     * Initializes and starts the routing engine.
-     */
-    public void handleRouterEngine() throws Exception {
-        log.info("Setup router engine..");
+        // 4. Correlation store
+        correlationStore = new CacheCorrelationStore(systemConfig.cacheTtl());
+
+        // 5. Camel context
         camelContext = new DefaultCamelContext();
-        camelContext.getExecutorServiceManager()
-                .setThreadPoolFactory(new VirtualThreadPoolFactory());
+        camelContext.getExecutorServiceManager().setThreadPoolFactory(new VirtualThreadPoolFactory());
+        MessageContextProcess messageContextProcess =
+                new MessageContextProcess(camelContext.createProducerTemplate());
 
-        SEEngine = new SEEngine(
-                metadataHolder,
-                profileProcessor,
-                channelCfgSelector,
-                correlationStore,
-                transportProvider
-        );
+        // 6. ChannelGroupRegistry (pure, no deps)
+        ChannelGroupRegistry groupRegistry = new ChannelGroupRegistry();
 
-        camelContext.addRoutes(SEEngine);
+        // 7. SocketLifecycleCoordinator (depends on: registry)
+        SocketLifecycleCoordinator coordinator = new SocketLifecycleCoordinator(groupRegistry);
+
+        // 8. SocketFactory (depends on: config, coordinator — NOT SocketManager)
+        SocketFactory socketFactory = new SocketFactory(
+                systemConfig, telemetryRegistry, parser, messageContextProcess, coordinator);
+
+        // 9. TransportRegister
+        TransportProvider transportProvider = new TransportProvider();
+        transportRegister = new TransportRegister(transportProvider);
+
+        // 10. SocketManager (depends on: factory — one-way, NO circular dep)
+        socketManager = new SocketManager(socketFactory, transportRegister, groupRegistry);
+
+        // 11. SEEngine
+        Iso8583ProfileResolver profileResolver = new Iso8583ProfileResolver(systemConfig);
+        ChannelCfgSelector cfgSelector = new ChannelCfgSelector();
+        seEngine = new SEEngine(
+                systemConfig, metadataHolder, profileResolver,
+                cfgSelector, correlationStore, transportProvider);
+        seEngine.bindSocketManager(socketManager);
+        camelContext.addRoutes(seEngine);
         camelContext.start();
-    }
 
-    /**
-     * Initializes socket layer and cluster manager if enabled.
-     */
-    public void handleSocketConfiguration() throws Exception {
-        log.info("Setup socket configuration..");
-        messageContextProcess = new MessageContextProcess(camelContext.createProducerTemplate());
-        socketFactory = new SocketFactory(socketManager, telemetryRegistry, parser, messageContextProcess);
-        socketManager = new SocketManager(socketFactory, transportRegister);
-
-        /**
-         * SocketManager is bound AFTER Camel routes are started.
-         * This is intentional to guarantee routing readiness
-         * before accepting inbound socket traffic.
-         */
-        SEEngine.bindSocketManager(socketManager);
-
+        // 12. Create sockets (AFTER engine is ready)
         for (ChannelCfg cfg : metadataHolder.get().channelCfgs()) {
-            socketManager.createSocket(cfg);
+            socketManager.createChannelGroup(cfg);
         }
 
-        if (cluster) {
-            handleCluster();
+        // 13. Cluster or standalone
+        if (systemConfig.clusterEnabled()) {
+            handleCluster(transportProvider);
         } else {
             socketManager.startAll();
         }
+
+        // 14. HTTP admin server
+        handleHttpServer(channelCfgProcessor, telemetryRegistry);
+
+        // 15. Shutdown hook
+        handleLifecycle();
+
+        log.info("System initialized successfully");
     }
 
-    /**
-     * Initializes cluster components (JGroups + Hazelcast).
-     */
-    public void handleCluster() throws Exception {
+    private void handleCluster(TransportProvider transportProvider) throws Exception {
         log.info("Cluster mode enabled, initializing cluster manager..");
 
-        // initialize jgroup parameter
-        System.setProperty("jgroups.bind_addr",
-                sc.getString("cluster.jgroup.bind-addr"));
-
+        System.setProperty("jgroups.bind_addr", rawConfig.getString("cluster.jgroup.bind-addr"));
         System.setProperty("jgroups.members",
-                sc.getStringList("cluster.members")
-                    .stream()
-                    .map(ip -> ip + "[" + sc.getInt("cluster.jgroup.port") + "]")
-                    .collect(Collectors.joining(",")));
+                rawConfig.getStringList("cluster.members").stream()
+                        .map(ip -> ip + "[" + rawConfig.getInt("cluster.jgroup.port") + "]")
+                        .collect(Collectors.joining(",")));
 
-        Path jGroupPath = Path.of(System.getProperty("base.dir"), sc.getString("cluster.jgroup-path"));
+        Path jGroupPath = Path.of(System.getProperty("base.dir"),
+                rawConfig.getString("cluster.jgroup-path"));
 
-        // intialize hazelcast
+        // Hazelcast
         com.hazelcast.config.Config hzConfig = new com.hazelcast.config.Config();
-        hzConfig.setClusterName(cu.getString("cluster.cluster-name", "socket-edge-cluster"));
+        hzConfig.setClusterName(rawConfig.hasPath("cluster.cluster-name")
+                ? rawConfig.getString("cluster.cluster-name") : "socket-edge-cluster");
 
-        hzConfig.getNetworkConfig()
-                .getJoin()
-                .getMulticastConfig().setEnabled(false);
+        hzConfig.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
+        TcpIpConfig tcp = hzConfig.getNetworkConfig().getJoin().getTcpIpConfig().setEnabled(true);
+        rawConfig.getStringList("cluster.members").forEach(tcp::addMember);
 
-        TcpIpConfig tcp = hzConfig.getNetworkConfig()
-                .getJoin()
-                .getTcpIpConfig()
-                .setEnabled(true);
+        hzConfig.addMapConfig(new MapConfig("socket-edge-state")
+                .setBackupCount(1).setAsyncBackupCount(0));
 
-       cu.getStringList("cluster.members").forEach(m -> {
-            tcp.addMember(m);
-        });
-
-        hzConfig.addMapConfig(
-                new MapConfig("socket-edge-state")
-                        .setBackupCount(1)
-                        .setAsyncBackupCount(0)
-        );
-
-        // initialize channel and hazelcast cluster
         HazelcastInstance hazelcast = Hazelcast.newHazelcastInstance(hzConfig);
         JChannel channel = new JChannel(jGroupPath.toAbsolutePath().toString());
 
         ClusterListener listener = new SocketClusterAdapter(socketManager);
 
-        RolePreference prefer =
-                RolePreference.valueOf(
-                        cu.getString("cluster.role.prefer", "slave").toUpperCase()
-                );
+        RolePreference prefer = RolePreference.valueOf(
+                (rawConfig.hasPath("cluster.role.prefer")
+                        ? rawConfig.getString("cluster.role.prefer") : "slave").toUpperCase());
+        boolean strict = rawConfig.hasPath("cluster.role.strict")
+                && rawConfig.getBoolean("cluster.role.strict");
 
-        boolean strict = cu.getBoolean("cluster.role.strict", false);
+        String clusterName = rawConfig.hasPath("cluster.cluster-name")
+                ? rawConfig.getString("cluster.cluster-name") : "socket-edge-cluster";
+        ClusterManager clusterManager = new ClusterManager(channel, new RolePolicy(prefer, strict), listener, clusterName);
 
-        RolePolicy rolePolicy =
-                new RolePolicy(prefer, strict);
+        // Override correlation store with Hazelcast-backed
+        correlationStore = new HazelcastCorrelationStore(
+                hazelcast.getMap("correlation-store"), systemConfig.cacheTtl());
+        seEngine.bindCorrelationStore(correlationStore);
 
-        ClusterManager clusterManager =
-                new ClusterManager(
-                        channel,
-                        rolePolicy,
-                        listener
-                );
-
-        /**
-         * CorrelationStore is bound Before cluster manager started.
-         */
-        correlationStore = new HazelcastCorrelationStore(hazelcast.getMap("correlation-store"), cu.getInt("engine.cache.ttl", 30000));
-        SEEngine.bindCorrelationStore(correlationStore);
-
-        log.warn("Override correlation store using hazelcast-backed store for cluster mode");
-
+        log.warn("Override correlation store with hazelcast-backed store for cluster mode");
         clusterManager.start();
     }
 
-    /**
-     * Starts the embedded HTTP server.
-     */
-    public void handleHttpServer() throws Exception {
-        log.info("Start httpserver..");
+    private void handleHttpServer(ChannelCfgProcessor channelCfgProcessor,
+                                  TelemetryRegistry telemetryRegistry) throws Exception {
+        log.info("Start HTTP server..");
 
         List<HttpServiceHandler> services = new ArrayList<>();
-        addHttpServiceHandlers(services);
-        httpServer = new NettyHttpServer(
-                        sc.getString("server.name"),
-                        sc.getInt("server.port"),
-                        services);
 
-        httpServer.start();
-    }
-
-
-    private void addHttpServiceHandlers(List<HttpServiceHandler> services) {
         ReloadCfgService reloadCfgService = new ReloadCfgService(socketManager, metadataHolder, channelCfgProcessor);
         AdminHttpService adminHttpService = new AdminHttpService(socketManager);
         CorrelationCacheService correlationCacheService = new CorrelationCacheService(correlationStore);
+
         new CommonServiceHandler(telemetryRegistry, adminHttpService, correlationCacheService, services);
         new ConfigServiceHandler(reloadCfgService, services);
+
+        httpServer = new NettyHttpServer(systemConfig.serverName(), systemConfig.http().port(), services);
+        httpServer.start();
     }
 
-    /**
-     * Registers JVM shutdown hook for graceful shutdown.
-     */
-    public void handleLifecycle() {
+    private void handleLifecycle() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown signal received...");
             long start = System.currentTimeMillis();
-            try {
-                if (httpServer != null) {
-                    httpServer.stop();
-                }
-            } catch (Exception e) {
-                log.error("Error stopping HTTP server", e);
-            }
 
-            try {
-                if (camelContext != null) {
-                    camelContext.stop();
-                }
-            } catch (Exception e) {
-                log.error("Error stopping Camel context", e);
-            }
+            safeStop("HTTP server", () -> { if (httpServer != null) httpServer.stop(); });
+            safeStop("Camel context", () -> { if (camelContext != null) camelContext.stop(); });
+            safeStop("Sockets", () -> { if (socketManager != null) socketManager.destroyAll(); });
+            safeStop("Transport", () -> { if (transportRegister != null) transportRegister.destroy(); });
+            safeStop("Correlation store", () -> { if (correlationStore != null) correlationStore.shutdown(); });
 
-            try {
-                if (socketManager != null) {
-                    socketManager.destroyAll();
-                }
-            } catch (Exception e) {
-                log.error("Error destroying sockets", e);
-            }
-
-            try {
-                if (transportRegister != null) {
-                    transportRegister.destroy();
-                }
-            } catch (Exception e) {
-                log.error("Error destroying transport register", e);
-            }
-
-            try {
-                if (correlationStore != null) {
-                    correlationStore.shutdown();
-                }
-            } catch (Exception e) {
-                log.error("Error shutting down correlation store", e);
-            }
             log.info("Gracefully shutdown took {}ms", (System.currentTimeMillis() - start));
         }));
     }
 
-    /**
-     * Application entry point.
-     */
+    private void safeStop(String component, Runnable action) {
+        try {
+            action.run();
+        } catch (Exception e) {
+            log.error("Error stopping {}", component, e);
+        }
+    }
+
+    private TelemetryRegistry createTelemetryRegistry() {
+        boolean enableJmx = Boolean.parseBoolean(System.getProperty("jmx.meter.enabled", "false"));
+
+        MeterRegistry meterRegistry;
+        if (enableJmx) {
+            log.info("JMX Meter Registry ENABLED");
+            JmxConfig config = key -> "jmx.domain".equals(key) ? "socket.edge" : null;
+            meterRegistry = new JmxMeterRegistry(config, Clock.SYSTEM);
+        } else {
+            log.info("JMX Meter Registry DISABLED (using SimpleMeterRegistry)");
+            meterRegistry = new SimpleMeterRegistry();
+        }
+
+        return new TelemetryRegistry(meterRegistry);
+    }
+
     public static void main(String[] args) throws Exception {
         try {
-            log.info("Starting application..");
+            log.info("Starting Socket Edge v3.0.0..");
             long start = System.currentTimeMillis();
             SystemBootstrap bootstrap = new SystemBootstrap(args);
             bootstrap.loadSystemConfiguration();
-            bootstrap.initializeObject();
-            bootstrap.loadChannelConfiguration();
-            bootstrap.handleRouterEngine();
-            bootstrap.handleSocketConfiguration();
-            bootstrap.handleHttpServer();
-            bootstrap.handleLifecycle();
-            log.info("Started took {}ms", (System.currentTimeMillis() - start));
+            bootstrap.initialize();
+            log.info("Started in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
             log.error("Fatal startup error", e);
             System.exit(1);
         }
-    }
-
-    /**
-     * Indicates whether the application is running in cluster mode.
-     *
-     * @return {@code true} if cluster mode is enabled
-     */
-    public static boolean isCluster() {
-        return cluster;
-    }
-
-    /**
-     * Returns the global system configuration.
-     *
-     * @return system configuration (never {@code null} after bootstrap)
-     */
-    public static Config getConfig() {
-        return sc;
-    }
-
-    /**
-     * Sets the global system configuration.
-     *
-     * <p>
-     * Intended for test use only. In production, configuration
-     * is loaded via {@link #loadSystemConfiguration()}.
-     * </p>
-     *
-     * @param config configuration to set
-     */
-    public static void setConfig(Config config) {
-        sc = config;
     }
 }

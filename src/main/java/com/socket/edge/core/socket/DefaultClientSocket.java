@@ -28,131 +28,46 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Default implementation of a client-side socket using Netty.
  *
- * <p>{@code DefaultClientSocket} is responsible for establishing and maintaining
- * an outbound TCP connection to a remote endpoint. It supports:
+ * <p>v3.0 changes:
  * <ul>
- *   <li>Automatic reconnect with exponential backoff</li>
- *   <li>Cluster-aware activation (MASTER only)</li>
- *   <li>Channel pooling</li>
- *   <li>Telemetry registration</li>
- *   <li>ISO message decoding and forwarding</li>
+ *   <li>Replaced {@code SocketManager} with {@link SocketLifecycleCoordinator}</li>
+ *   <li>Fixed: Frame decoder limit (was {@code Integer.MAX_VALUE})</li>
+ *   <li>Handler no longer queries SocketManager for server socket state</li>
  * </ul>
  *
- * <p>In cluster mode, the socket will only actively connect and send traffic
- * when the node role is {@link NodeRole#MASTER}. When running as
- * {@link NodeRole#SLAVE}, the socket stays in {@link SocketState#STANDBY}.</p>
- *
- * <p>Thread safety:
- * <ul>
- *   <li>Lifecycle methods are synchronized</li>
- *   <li>{@link #socketState} and {@link #running} use volatile visibility</li>
- *   <li>Reconnect coordination uses {@link AtomicBoolean}</li>
- * </ul>
- *
- *  @author Ari Patriana
- *  @since 1.0.0
+ * @author Ari Patriana
+ * @since 3.0.0
  */
 public class DefaultClientSocket extends AbstractSocket {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultClientSocket.class);
 
-    /**
-     * Current socket state.
-     */
-    private volatile SocketState socketState = SocketState.DOWN;
-
-    /**
-     * Remote host.
-     */
-    private final String host;
-
-    /**
-     * Remote port.
-     */
-    private final int port;
-
-    /**
-     * Active Netty channel.
-     */
-    private Channel channel;
-
-    /**
-     * Netty event loop group.
-     */
-    private EventLoopGroup group;
-
-    /**
-     * Scheduler for reconnect attempts.
-     */
-    private ScheduledExecutorService scheduler;
-
-    /**
-     * Netty bootstrap configuration.
-     */
-    private Bootstrap bootstrap;
-
-    /**
-     * Indicates whether a reconnect attempt is currently scheduled.
-     */
-    private final AtomicBoolean reconnecting = new AtomicBoolean(false);
-
-    /**
-     * Indicates whether the socket is running.
-     */
-    private volatile boolean running = false;
-
-    /**
-     * Current reconnect retry count.
-     */
-    private int retryCount = 0;
-
-    /**
-     * Maximum reconnect backoff in seconds.
-     */
+    private static final int MAX_FRAME_LENGTH = 8192;
     private static final int MAX_BACKOFF_SECONDS = 30;
 
-    /**
-     * ISO message parser.
-     */
-    private IsoParser parser;
+    private volatile SocketState socketState = SocketState.DOWN;
+    private final String host;
+    private final int port;
+    private Channel channel;
+    private EventLoopGroup group;
+    private ScheduledExecutorService scheduler;
+    private Bootstrap bootstrap;
+    private final AtomicBoolean reconnecting = new AtomicBoolean(false);
+    private volatile boolean running = false;
+    private int retryCount = 0;
 
-    /**
-     * Message forwarder to processing pipeline.
-     */
-    private MessageContextProcess forward;
-
-    /**
-     * Channel pool associated with this socket.
-     */
-    private SocketChannelPooling channelPool;
-
-    /**
-     * Socket type.
-     */
+    private final SocketLifecycleCoordinator coordinator;
+    private final IsoParser parser;
+    private final MessageContextProcess forward;
+    private final SocketChannelPooling channelPool;
     private final SocketType type = SocketType.CLIENT;
+    private final TelemetryRegistry telemetryRegistry;
 
-    /**
-     * Telemetry registry.
-     */
-    private TelemetryRegistry telemetryRegistry;
-
-    private SocketManager sm;
-
-    /**
-     * Creates a new client socket.
-     *
-     * @param cluster           whether cluster mode is enabled
-     * @param name              socket name
-     * @param se                remote socket endpoint
-     * @param telemetryRegistry telemetry registry
-     * @param parser            ISO message parser
-     * @param forward           message forwarding processor
-     */
     public DefaultClientSocket(
             boolean cluster,
             String name,
             SocketEndpoint se,
-            SocketManager sm,
+            SocketLifecycleCoordinator coordinator,
             TelemetryRegistry telemetryRegistry,
             IsoParser parser,
             MessageContextProcess forward
@@ -170,11 +85,11 @@ public class DefaultClientSocket extends AbstractSocket {
         this.port = se.port();
         this.parser = parser;
         this.forward = forward;
+        this.coordinator = coordinator;
+        this.telemetryRegistry = telemetryRegistry;
 
         registerEndpoint(se);
 
-        this.sm = sm;
-        this.telemetryRegistry = telemetryRegistry;
         this.channelPool = new SocketChannelPooling(this);
 
         this.group = new NioEventLoopGroup(
@@ -183,7 +98,7 @@ public class DefaultClientSocket extends AbstractSocket {
         );
 
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r ->
-                new Thread(r, String.format("%s-client", name))
+                new Thread(r, String.format("%s-client-reconnect", name))
         );
 
         bootstrap = new Bootstrap()
@@ -195,11 +110,11 @@ public class DefaultClientSocket extends AbstractSocket {
                     protected void initChannel(Channel ch) {
                         ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                         ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(
-                                Integer.MAX_VALUE, 0, 2, 0, 2
+                                MAX_FRAME_LENGTH, 0, 2, 0, 2
                         ));
                         ch.pipeline().addLast(new ByteDecoder());
                         ch.pipeline().addLast(new ClientInboundHandler(
-                                sm,DefaultClientSocket.this, parser, forward
+                                DefaultClientSocket.this, parser, forward, coordinator
                         ));
                         ch.pipeline().addLast(new ByteEncoder());
                         ch.pipeline().addLast(new LengthFieldPrepender(2));
@@ -207,13 +122,6 @@ public class DefaultClientSocket extends AbstractSocket {
                 });
     }
 
-    /**
-     * Starts the client socket.
-     *
-     * <p>In cluster mode, the socket will only connect immediately
-     * if the node role is {@link NodeRole#MASTER}. Otherwise, it
-     * enters standby mode.</p>
-     */
     @Override
     public synchronized void start() {
         if (running) {
@@ -222,8 +130,6 @@ public class DefaultClientSocket extends AbstractSocket {
         }
 
         if (!isCluster() || getRole() == NodeRole.MASTER) {
-
-
             log.debug(
                     isCluster()
                             ? "Start client socket app id={} as {}"
@@ -234,7 +140,6 @@ public class DefaultClientSocket extends AbstractSocket {
 
             running = true;
             startTime = System.currentTimeMillis();
-
             socketState = SocketState.WAIT;
         } else {
             socketState = SocketState.STANDBY;
@@ -242,9 +147,6 @@ public class DefaultClientSocket extends AbstractSocket {
         }
     }
 
-    /**
-     * Stops the socket and closes all connections.
-     */
     @Override
     public synchronized void stop() {
         if (!running) {
@@ -268,13 +170,10 @@ public class DefaultClientSocket extends AbstractSocket {
             log.info("{} stopped", getId());
         } catch (Exception e) {
             changeState(SocketState.ERROR);
-            log.error("Failed to demote socket {}", getId(), e);
+            log.error("Failed to stop socket {}", getId(), e);
         }
     }
 
-    /**
-     * Gracefully shuts down the socket and releases all resources.
-     */
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
@@ -290,10 +189,7 @@ public class DefaultClientSocket extends AbstractSocket {
         log.info("{} shutdown", getId());
     }
 
-    /**
-     * Attempts to establish a connection to the remote endpoint.
-     */
-    public synchronized void connect(CompletionCallback callback) {
+    public synchronized void connect(CompletionCallback<DefaultClientSocket> callback) {
         if (!running) {
             log.warn("Skip connect: component is not running");
             return;
@@ -310,10 +206,8 @@ public class DefaultClientSocket extends AbstractSocket {
         }
 
         if (group.isShutdown() || group.isTerminated()) {
-            log.warn(
-                    "Skip connect: event loop group is {}",
-                    group.isShutdown() ? "SHUTDOWN" : "TERMINATED"
-            );
+            log.warn("Skip connect: event loop group is {}",
+                    group.isShutdown() ? "SHUTDOWN" : "TERMINATED");
             return;
         }
 
@@ -336,7 +230,6 @@ public class DefaultClientSocket extends AbstractSocket {
                     log.info("{} connected", getId());
 
                     Channel ch = future.channel();
-
                     this.channel = ch;
                     retryCount = 0;
 
@@ -345,10 +238,6 @@ public class DefaultClientSocket extends AbstractSocket {
                 });
     }
 
-
-    /**
-     * Schedules a reconnect attempt using exponential backoff.
-     */
     public synchronized void scheduleReconnect() {
         if (!running) {
             log.warn("Skip reconnect scheduling: component is not running");
@@ -356,41 +245,32 @@ public class DefaultClientSocket extends AbstractSocket {
         }
 
         if (isCluster() && getRole() != NodeRole.MASTER) {
-            log.warn(
-                    "Skip reconnect scheduling: node role is {}, only MASTER can schedule reconnect",
-                    getRole()
-            );
+            log.warn("Skip reconnect scheduling: node role is {}", getRole());
             return;
         }
 
         if (!reconnecting.compareAndSet(false, true)) {
-            log.warn("Skip reconnect scheduling: reconnect is already in progress");
+            log.warn("Skip reconnect scheduling: reconnect already in progress");
             return;
         }
 
-        int delaySeconds = Math.min(
-                MAX_BACKOFF_SECONDS,
-                1 << retryCount
-        );
-
+        int delaySeconds = Math.min(MAX_BACKOFF_SECONDS, 1 << retryCount);
         retryCount++;
 
-        log.info(
-                "{} reconnect to {}:{} in {}s (retry={})",
-                getId(), host, port, delaySeconds, retryCount
-        );
+        log.info("{} reconnect to {}:{} in {}s (retry={})",
+                getId(), host, port, delaySeconds, retryCount);
 
-        scheduler.schedule(() -> connect(new CompletionCallback<DefaultClientSocket>() {
-                @Override
-                public void onComplete(DefaultClientSocket client) {
-                    log.info("{} reconnect successful", getId());
-                }
+        scheduler.schedule(() -> connect(new CompletionCallback<>() {
+            @Override
+            public void onComplete(DefaultClientSocket client) {
+                log.info("{} reconnect successful", getId());
+            }
 
-                @Override
-                public void onFailure(DefaultClientSocket client) {
-                    log.warn("{} reconnect failed", getId());
-                    scheduleReconnect();
-                }
+            @Override
+            public void onFailure(DefaultClientSocket client) {
+                log.warn("{} reconnect failed", getId());
+                scheduleReconnect();
+            }
         }), delaySeconds, TimeUnit.SECONDS);
     }
 
@@ -413,4 +293,3 @@ public class DefaultClientSocket extends AbstractSocket {
         this.socketState = socketState;
     }
 }
-

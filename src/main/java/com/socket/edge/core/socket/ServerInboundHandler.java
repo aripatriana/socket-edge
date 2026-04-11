@@ -1,7 +1,5 @@
 package com.socket.edge.core.socket;
 
-import com.socket.edge.constant.SocketState;
-import com.socket.edge.core.CompletionCallback;
 import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.constant.SocketType;
@@ -12,26 +10,42 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
-public final class ServerInboundHandler
-        extends ChannelInboundHandlerAdapter {
+/**
+ * Server-side Netty inbound handler for ISO 8583 message processing.
+ *
+ * <p>v3.0 changes:
+ * <ul>
+ *   <li>Removed {@code SocketManager} dependency — no more circular dependency</li>
+ *   <li>Lifecycle orchestration delegated to {@link SocketLifecycleCoordinator}</li>
+ *   <li>Fixed: dead code in channelRead (pattern matching + explicit cast)</li>
+ *   <li>Fixed: PCI-DSS compliant logging (no raw message content)</li>
+ *   <li>Fixed: NPE guard on getSocketClientByName return value</li>
+ * </ul>
+ *
+ * @author Ari Patriana
+ * @since 3.0.0
+ */
+public final class ServerInboundHandler extends ChannelInboundHandlerAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(ServerInboundHandler.class);
 
-    private final SocketManager sm;
     private final DefaultServerSocket serverSocket;
     private final IsoParser isoParser;
     private final MessageContextProcess messageContextProcess;
+    private final SocketLifecycleCoordinator coordinator;
 
-    public ServerInboundHandler(SocketManager sm, DefaultServerSocket serverSocket, IsoParser isoParser, MessageContextProcess messageContextProcess) {
-        this.sm = sm;
+    public ServerInboundHandler(
+            DefaultServerSocket serverSocket,
+            IsoParser isoParser,
+            MessageContextProcess messageContextProcess,
+            SocketLifecycleCoordinator coordinator
+    ) {
         this.serverSocket = serverSocket;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;
+        this.coordinator = coordinator;
     }
 
     @Override
@@ -44,16 +58,18 @@ public final class ServerInboundHandler
             return;
         }
 
+        // v3.0 FIX: proper pattern matching with early return
+        if (!(msg instanceof byte[] rawBytes)) {
+            log.warn("Unsupported message type: {}", msg.getClass());
+            return;
+        }
+
         try {
             socketChannel.onMessage();
 
-            if (!(msg instanceof byte[] rawBytes)) {
-                log.warn("Unsupported message type: {}", msg.getClass());
-            }
-
-            byte[] rawBytes = (byte[]) msg;
-            if (log.isInfoEnabled()) {
-                log.info("{} read {}", serverSocket.getId(), new String(rawBytes));
+            // v3.0 FIX: PCI-DSS safe logging — no raw message content
+            if (log.isDebugEnabled()) {
+                log.debug("{} received {} bytes", serverSocket.getId(), rawBytes.length);
             }
 
             Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
@@ -86,60 +102,10 @@ public final class ServerInboundHandler
             return;
         }
 
-        List<AbstractSocket> clientSockets = sm.getSocketClientByName(serverSocket.getName());
-        if (clientSockets.isEmpty()) {
-            log.warn("Skip channelActive: No client socket found for server socket {}", serverSocket.getId());
-            ctx.close();
-            return;
-        }
-
-        AtomicInteger remains = new AtomicInteger(clientSockets.size());
-        AtomicInteger complete = new AtomicInteger(0);
-        CompletionCallback callback = new CompletionCallback<DefaultClientSocket>() {
-            List<DefaultClientSocket> failures = new ArrayList<>();
-            @Override
-            public void onComplete(DefaultClientSocket client) {
-                complete.incrementAndGet();
-                remains.decrementAndGet();
-                afterEvent();
-            }
-
-            @Override
-            public void onFailure(DefaultClientSocket client) {
-                remains.decrementAndGet();
-                failures.add(client);
-                afterEvent();
-            }
-
-            private void afterEvent() {
-                if (remains.get() == 0) {
-                    if (complete.get() == 0) {
-                        log.warn("All client socket failed to connect for server socket {}", serverSocket.getId());
-                        ctx.close();
-                    } else {
-                        ctx.channel().config().setAutoRead(true);
-                        failures.forEach(client -> client.scheduleReconnect());
-                    }
-                }
-            }
-        };
-
-        clientSockets.forEach(client -> ((DefaultClientSocket)client).connect(callback));
-        int totalAvailableChannels =
-                clientSockets.stream()
-                        .mapToInt(cs -> cs.channelPool().availableChannels().size())
-                        .sum();
-        if (totalAvailableChannels == 0) {
-            log.info("No available channels in client sockets for server socket {}", serverSocket.getId());
-            ctx.close();
-            return;
-        }
-
-        if (serverSocket.getState() == SocketState.LISTEN) {
-            log.info("{} state changed to ACTIVE", serverSocket.getId());
-            serverSocket.changeState(SocketState.ACTIVE);
-        };
         socketChannel.onConnect();
+
+        // v3.0: delegate lifecycle orchestration to coordinator
+        coordinator.onServerChannelActive(serverSocket, ctx.channel());
     }
 
     @Override
@@ -152,36 +118,15 @@ public final class ServerInboundHandler
             return;
         }
 
-        List<AbstractSocket> clientSockets = sm.getSocketClientByName(serverSocket.getName());
-        if (clientSockets.isEmpty()) {
-            log.warn("Skip channelInactive: No client socket found for server socket {}", serverSocket.getId());
-            return;
-        }
-
-        if (serverSocket.channelPool().getAllChannel().size() == 0
-                && serverSocket.getState() == SocketState.ACTIVE) {
-
-            clientSockets.forEach(client -> {
-                try {
-                    client.restart();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-
-            log.info("{} state changed to ACTIVE", serverSocket.getId());
-            serverSocket.changeState(SocketState.LISTEN);
-        }
         socketChannel.onDisconnect();
+
+        // v3.0: delegate lifecycle orchestration to coordinator
+        coordinator.onServerChannelInactive(serverSocket, ctx.channel());
     }
 
     @Override
-    public void exceptionCaught(
-            ChannelHandlerContext ctx,
-            Throwable cause
-    ) {
-        // TODO harus ada handling proper
-        log.error("{} exception occured {}", serverSocket.getId(), cause);
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        log.error("{} exception occurred: {}", serverSocket.getId(), cause.getMessage());
         serverSocket.channelPool().removeChannel(ctx.channel());
         ctx.close();
     }

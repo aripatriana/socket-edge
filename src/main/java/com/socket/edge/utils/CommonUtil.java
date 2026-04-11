@@ -63,7 +63,7 @@ public class CommonUtil {
         return (int) (crc.getValue() % 100_000_000);
     }
 
-    public static boolean validIPAddresss(String host) {
+    public static boolean validIPAddress(String host) {
         return IPV4.matcher(host).matches() || IPV6.matcher(host).matches();
     }
 

@@ -1,6 +1,6 @@
 package com.socket.edge.model.helper;
 
-import com.socket.edge.constant.SockeEndpointField;
+import com.socket.edge.constant.SocketEndpointField;
 import com.socket.edge.model.SocketEndpoint;
 
 import java.util.Map;
@@ -8,7 +8,7 @@ import java.util.Map;
 public record SocketEndpointDiff (
         SocketEndpoint oldSocketEndpoint,
         SocketEndpoint newSocketEndpoint,
-        Map<SockeEndpointField, FieldDiff> fieldChanges) {
+        Map<SocketEndpointField, FieldDiff> fieldChanges) {
     public boolean hasChanges() {
         return !fieldChanges.isEmpty();
     }

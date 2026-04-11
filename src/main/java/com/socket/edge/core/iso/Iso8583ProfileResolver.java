@@ -1,52 +1,48 @@
 package com.socket.edge.core.iso;
 
 import com.socket.edge.core.MessageContext;
+import com.socket.edge.core.SystemConfig;
 import com.socket.edge.constant.Direction;
 import com.socket.edge.model.Iso8583Profile;
-
-import static com.socket.edge.SystemBootstrap.getConfig;
 
 import java.util.stream.Collectors;
 
 /**
  * Resolves ISO 8583 message characteristics based on a profile definition.
  *
- * <p>{@code Iso8583ProfileResolver} is responsible for:
+ * <p>v3.0 changes:
  * <ul>
- *   <li>Determining message {@link Direction} from MTI</li>
- *   <li>Building correlation keys for request–response matching</li>
+ *   <li>Config injected via constructor instead of static {@code SystemBootstrap.getConfig()}</li>
+ *   <li>Fixed: Correlation key collision — now uses {@code fieldName=value} format
+ *       to prevent ambiguity (e.g. de2=123|de11=456 vs de2=12|de11=3456)</li>
  * </ul>
  *
- * <p>The resolution logic is driven entirely by {@link Iso8583Profile},
- * allowing different ISO profiles (host, switch, channel-specific)
- * to be plugged in without changing code.</p>
- *
- * <p>This class is stateless and thread-safe.</p>
- *
  * @author Ari Patriana
- * @since 1.0.0
+ * @since 3.0.0
  */
 public final class Iso8583ProfileResolver {
 
+    private final String packagerKey;
+
+    /**
+     * Creates a new resolver with injected configuration.
+     *
+     * @param config system configuration
+     */
+    public Iso8583ProfileResolver(SystemConfig config) {
+        this.packagerKey = config.packagerKey();
+    }
+
     /**
      * Resolves the message direction based on MTI.
-     *
-     * <p>The MTI is extracted from the {@link MessageContext} using
-     * the configured packager key, then matched against the
-     * direction mapping defined in {@link Iso8583Profile}.</p>
      *
      * @param ctx     message context containing ISO fields
      * @param profile ISO 8583 profile definition
      * @return resolved message direction
      * @throws IllegalStateException if the MTI is not mapped
-     *                               to any known direction
      */
-    public Direction resolveDirection(
-            MessageContext ctx,
-            Iso8583Profile profile
-    ) {
-
-        String mti = ctx.field(getConfig().getString("message.packager.key"));
+    public Direction resolveDirection(MessageContext ctx, Iso8583Profile profile) {
+        String mti = ctx.field(packagerKey);
 
         for (Direction direction : Direction.values()) {
             if (profile.valuesFor(direction).contains(mti)) {
@@ -60,29 +56,17 @@ public final class Iso8583ProfileResolver {
     /**
      * Builds a correlation key for matching request and response messages.
      *
-     * <p>The correlation key is composed of:
-     * <ul>
-     *   <li>Channel name</li>
-     *   <li>One or more ISO fields defined in the profile</li>
-     * </ul>
-     *
-     * <p>Example format:
+     * <p>v3.0 format uses explicit field names to prevent collision:
      * <pre>
-     * channelName|field11|field37|field41
+     * channelName||de2=123456|de11=000001|de37=123456789012
      * </pre>
-     *
-     * <p>All correlation fields must be present in the message context.
-     * Missing fields will result in an exception.</p>
      *
      * @param ctx     message context containing ISO fields
      * @param profile ISO 8583 profile definition
      * @return correlation key string
      * @throws IllegalStateException if any correlation field is missing
      */
-    public String buildCorrelationKey(
-            MessageContext ctx,
-            Iso8583Profile profile
-    ) {
+    public String buildCorrelationKey(MessageContext ctx, Iso8583Profile profile) {
         String channel = ctx.getChannelCfg().name();
 
         String key = profile.correlationFields().stream()
@@ -93,10 +77,11 @@ public final class Iso8583ProfileResolver {
                                 "Correlation field missing: " + f + ", channel=" + channel
                         );
                     }
-                    return val;
+                    // v3.0 FIX: include field name to prevent collision
+                    return f + "=" + val;
                 })
                 .collect(Collectors.joining("|"));
 
-        return channel + "|" + key;
+        return channel + "||" + key;
     }
 }

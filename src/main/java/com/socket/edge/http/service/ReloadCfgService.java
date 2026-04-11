@@ -3,6 +3,7 @@ package com.socket.edge.http.service;
 import com.socket.edge.core.ChannelCfgProcessor;
 import com.socket.edge.core.MetadataHolder;
 import com.socket.edge.core.socket.AbstractSocket;
+import com.socket.edge.core.socket.ChannelGroup;
 import com.socket.edge.core.socket.SocketManager;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Metadata;
@@ -17,7 +18,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Objects;
 
 public class ReloadCfgService {
@@ -36,12 +36,9 @@ public class ReloadCfgService {
     }
 
     private Path channelConfigPath() {
-        return Path.of(
-                System.getProperty("base.dir"),
-                "conf",
-                CHANNEL_CONF
-        );
+        return Path.of(System.getProperty("base.dir"), "conf", CHANNEL_CONF);
     }
+
     public MetadataDiff validate() throws IOException {
         try {
             Metadata newMetadata = channelCfgProcessor.process(channelConfigPath());
@@ -66,17 +63,13 @@ public class ReloadCfgService {
 
     public synchronized void reloadConfig(Metadata newMetadata) {
         log.info("Reloading channel configuration...");
-
         MetadataDiff diff = metadataHolder.get().diffWith(newMetadata);
-
         try {
             handleDeletedChannels(diff);
             handleAddedChannels(diff);
             handleModifiedChannels(diff);
-
             metadataHolder.replaceWith(newMetadata);
             log.info("Channel configuration reload completed successfully");
-
         } catch (Exception e) {
             log.error("Failed to reload channel configuration. Metadata not replaced.", e);
             throw new RuntimeException("Failed to reload channel configuration", e);
@@ -93,8 +86,9 @@ public class ReloadCfgService {
     private void handleAddedChannels(MetadataDiff diff) {
         diff.addedChannelCfgs().forEach(cfg -> {
             log.info("Added channel config detected: {}", cfg.name());
-            List<AbstractSocket> sockets = socketManager.createSocket(cfg);
-            socketManager.startAll(sockets);
+            ChannelGroup group = socketManager.createChannelGroup(cfg);
+            if (group.server() != null) socketManager.start(group.server());
+            group.clients().forEach(socketManager::start);
         });
     }
 
@@ -109,43 +103,27 @@ public class ReloadCfgService {
         ChannelCfg newCfg = channelDiff.newCfg();
         ClientChannelDiff clientDiff = channelDiff.clientChannelDiff();
 
-        // Removed endpoints
         clientDiff.removedEndpoints().forEach(endpoint -> {
             log.info("Client endpoint removed: {}:{}", endpoint.host(), endpoint.port());
             socketManager.destroyClientSocket(newCfg, endpoint);
         });
 
-        // Added endpoints
         clientDiff.addedEndpoints().forEach(endpoint -> {
             log.info("Client endpoint added: {}:{}", endpoint.host(), endpoint.port());
-            AbstractSocket socket = socketManager.createClientSockets(newCfg, endpoint);
-            socketManager.start(socket);
+            AbstractSocket socket = socketManager.createClientSocket(newCfg, endpoint);
+            if (socket != null) socketManager.start(socket);
         });
 
-        // Modified endpoints
-        clientDiff.modifiedEndpoints().forEach(diff -> {
-            SocketEndpoint newEp = diff.newSocketEndpoint();
-            String clientId = CommonUtil.clientId(
-                    newCfg.name(),
-                    newEp.host(),
-                    newEp.port()
-            );
-
+        clientDiff.modifiedEndpoints().forEach(epDiff -> {
+            SocketEndpoint newEp = epDiff.newSocketEndpoint();
+            String clientId = CommonUtil.clientId(newCfg.name(), newEp.host(), newEp.port());
             AbstractSocket socket = socketManager.getSocket(clientId);
             if (socket == null) {
                 log.warn("Client socket not found for {}", clientId);
                 return;
             }
-
-            log.info(
-                    "Updating client endpoint properties [{}] host={} port={} weight={} priority={}",
-                    newCfg.name(),
-                    newEp.host(),
-                    newEp.port(),
-                    newEp.weight(),
-                    newEp.priority()
-            );
-
+            log.info("Updating client endpoint [{}] host={} port={} weight={} priority={}",
+                    newCfg.name(), newEp.host(), newEp.port(), newEp.weight(), newEp.priority());
             socket.updateEndpointProperties(newEp);
         });
     }
@@ -155,61 +133,24 @@ public class ReloadCfgService {
         ServerChannelDiff serverDiff = channelDiff.serverChannelDiff();
 
         serverDiff.removedEndpoints().forEach(endpoint -> {
-            log.info("Server endpoint removed: {}:{}", endpoint.host(), endpoint.port());
-            String serverId = CommonUtil.serverId(
-                    newCfg.name(),
-                    endpoint.port()
-            );
-
+            log.info("Server endpoint removed: {}", endpoint.host());
+            String serverId = CommonUtil.serverId(newCfg.name(), newCfg.server().listenPort());
             AbstractSocket socket = socketManager.getSocket(serverId);
-            if (socket == null) {
-                log.warn("Server socket not found for {}", serverId);
-                return;
-            }
-
-            socket.removeEndpoint(endpoint.id());
+            if (socket != null) socket.removeEndpoint(endpoint.id());
         });
 
-        // Added endpoints
         serverDiff.addedEndpoints().forEach(endpoint -> {
-            log.info("Server endpoint added: {}:{}", endpoint.host(), endpoint.port());
-            String serverId = CommonUtil.serverId(
-                    newCfg.name(),
-                    endpoint.port()
-            );
-
+            log.info("Server endpoint added: {}", endpoint.host());
+            String serverId = CommonUtil.serverId(newCfg.name(), newCfg.server().listenPort());
             AbstractSocket socket = socketManager.getSocket(serverId);
-            if (socket == null) {
-                log.warn("Server socket not found for {}", serverId);
-                return;
-            }
-
-            socket.registerEndpoint(endpoint);
+            if (socket != null) socket.registerEndpoint(endpoint);
         });
 
-        serverDiff.modifiedEndpoints().forEach(diff -> {
-            SocketEndpoint newEp = diff.newSocketEndpoint();
-            String serverId = CommonUtil.serverId(
-                    newCfg.name(),
-                    newEp.port()
-            );
-
+        serverDiff.modifiedEndpoints().forEach(epDiff -> {
+            SocketEndpoint newEp = epDiff.newSocketEndpoint();
+            String serverId = CommonUtil.serverId(newCfg.name(), newCfg.server().listenPort());
             AbstractSocket socket = socketManager.getSocket(serverId);
-            if (socket == null) {
-                log.warn("Server socket not found for {}", serverId);
-                return;
-            }
-
-            log.info(
-                    "Updating server endpoint properties [{}] port={} weight={} priority={}",
-                    newCfg.name(),
-                    newEp.port(),
-                    newEp.weight(),
-                    newEp.priority()
-            );
-
-            socket.updateEndpointProperties(newEp);
+            if (socket != null) socket.updateEndpointProperties(newEp);
         });
     }
-
 }

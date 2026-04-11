@@ -1,6 +1,6 @@
 package com.socket.edge.model;
 
-import com.socket.edge.constant.SockeEndpointField;
+import com.socket.edge.constant.SocketEndpointField;
 import com.socket.edge.core.strategy.WeightedCandidate;
 import com.socket.edge.model.helper.FieldDiff;
 import com.socket.edge.model.helper.SocketEndpointDiff;
@@ -33,21 +33,21 @@ public record SocketEndpoint(
 
     public SocketEndpointDiff diffWith(SocketEndpoint newOne) {
         SocketEndpoint oldOne = this;
-        Map<SockeEndpointField, FieldDiff> changes = new LinkedHashMap<>();
+        Map<SocketEndpointField, FieldDiff> changes = new LinkedHashMap<>();
         CommonUtil.diff(changes,
-                SockeEndpointField.WEIGHT,
+                SocketEndpointField.WEIGHT,
                 oldOne.weight(), newOne.weight(),
                 ChangeImpact.LIVE);
         CommonUtil.diff(changes,
-                SockeEndpointField.PRIORITY,
+                SocketEndpointField.PRIORITY,
                 oldOne.priority(), newOne.priority(),
                 ChangeImpact.LIVE);
         CommonUtil.diff(changes,
-                SockeEndpointField.MAX_FAILS,
+                SocketEndpointField.MAX_FAILS,
                 oldOne.maxfails(), newOne.maxfails(),
                 ChangeImpact.LIVE);
         CommonUtil.diff(changes,
-                SockeEndpointField.FAIL_TIMEOUT,
+                SocketEndpointField.FAIL_TIMEOUT,
                 oldOne.failTimeout(), newOne.failTimeout(),
                 ChangeImpact.LIVE);
         return new SocketEndpointDiff(oldOne, newOne, changes);

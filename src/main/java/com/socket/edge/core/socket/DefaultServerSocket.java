@@ -13,7 +13,6 @@ import com.socket.edge.utils.IsoParser;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
@@ -26,117 +25,47 @@ import java.util.List;
 /**
  * Default implementation of a server-side socket using Netty.
  *
- * <p>{@code DefaultServerSocket} listens for inbound TCP connections and
- * processes incoming messages through a configurable Netty pipeline.
- * It supports:
+ * <p>v3.0 changes:
  * <ul>
- *   <li>Cluster-aware activation (MASTER only)</li>
- *   <li>Dynamic allowlist of permitted endpoints</li>
- *   <li>Channel pooling and lifecycle management</li>
- *   <li>Telemetry integration</li>
- *   <li>ISO message decoding and forwarding</li>
- * </ul>
- *
- * <p>In cluster mode, the server socket binds to the port and accepts
- * connections only when the node role is {@link NodeRole#MASTER}.
- * When running as {@link NodeRole#SLAVE}, the socket remains in
- * {@link SocketState#STANDBY}.</p>
- *
- * <p>Thread safety:
- * <ul>
- *   <li>Lifecycle methods are synchronized</li>
- *   <li>{@link #socketState} and {@link #running} use volatile visibility</li>
- *   <li>Netty event loops manage I/O concurrency</li>
+ *   <li>Replaced {@code SocketManager} dependency with {@link SocketLifecycleCoordinator}</li>
+ *   <li>Fixed: Frame decoder now has {@code MAX_FRAME_LENGTH} limit (was {@code Integer.MAX_VALUE})</li>
+ *   <li>Handler no longer orchestrates client lifecycle directly</li>
  * </ul>
  *
  * @author Ari Patriana
- * @since 1.0.0
+ * @since 3.0.0
  */
 public class DefaultServerSocket extends AbstractSocket {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultServerSocket.class);
 
     /**
-     * Current socket state.
+     * Maximum ISO 8583 message frame size (8 KB).
+     * Prevents OOM from malicious oversized frames.
      */
+    private static final int MAX_FRAME_LENGTH = 8192;
+
     private volatile SocketState socketState = SocketState.DOWN;
-
-    /**
-     * Server listening port.
-     */
     private final int port;
-
-    /**
-     * Netty boss event loop group (acceptor).
-     */
     private EventLoopGroup boss;
-
-    /**
-     * Netty worker event loop group (I/O workers).
-     */
     private EventLoopGroup worker;
-
-    /**
-     * Server channel bound to the listening port.
-     */
     private Channel serverChannel;
-
-    /**
-     * Indicates whether the socket is running.
-     */
     private volatile boolean running = false;
 
-    private SocketManager sm;
-
-    /**
-     * ISO message parser.
-     */
-    private IsoParser parser;
-
-    /**
-     * Message forwarding processor.
-     */
-    private MessageContextProcess forward;
-
-    /**
-     * Channel pool associated with this socket.
-     */
-    private SocketChannelPooling channelPool;
-
-    /**
-     * Socket type.
-     */
+    private final SocketLifecycleCoordinator coordinator;
+    private final IsoParser parser;
+    private final MessageContextProcess forward;
+    private final SocketChannelPooling channelPool;
     private final SocketType type = SocketType.SERVER;
+    private final TelemetryRegistry telemetryRegistry;
 
-    /**
-     * Socket telemetry.
-     */
-    private SocketTelemetry socketTelemetry;
-
-    /**
-     * Telemetry registry.
-     */
-    private TelemetryRegistry telemetryRegistry;
-
-    /**
-     * Creates a new server socket.
-     *
-     * @param cluster           whether cluster mode is enabled
-     * @param name              socket name
-     * @param host              bind host
-     * @param port              bind port
-     * @param allowlist         list of allowed remote endpoints
-     * @param telemetryRegistry telemetry registry
-     * @param parser            ISO message parser
-     * @param forward           message forwarding processor
-     */
     public DefaultServerSocket(
             boolean cluster,
             String name,
             String host,
             int port,
             List<SocketEndpoint> allowlist,
-            SocketManager sm,
+            SocketLifecycleCoordinator coordinator,
             TelemetryRegistry telemetryRegistry,
             IsoParser parser,
             MessageContextProcess forward
@@ -153,33 +82,23 @@ public class DefaultServerSocket extends AbstractSocket {
         this.port = port;
         this.parser = parser;
         this.forward = forward;
+        this.coordinator = coordinator;
+        this.telemetryRegistry = telemetryRegistry;
 
         allowlist.forEach(this::registerEndpoint);
 
-        this.sm = sm;
-        this.telemetryRegistry = telemetryRegistry;
         this.channelPool = new SocketChannelPooling(this);
 
         this.boss = new NioEventLoopGroup(
                 1,
-                new DefaultThreadFactory(
-                        String.format("%s-server-el-b", getName())
-                )
+                new DefaultThreadFactory(String.format("%s-server-el-b", getName()))
         );
 
         this.worker = new NioEventLoopGroup(
-                new DefaultThreadFactory(
-                        String.format("%s-server-el-w", getName())
-                )
+                new DefaultThreadFactory(String.format("%s-server-el-w", getName()))
         );
     }
 
-    /**
-     * Starts the server socket.
-     *
-     * <p>In cluster mode, the socket will only bind and listen
-     * if the node role is {@link NodeRole#MASTER}.</p>
-     */
     @Override
     public synchronized void start() throws InterruptedException {
         if (running) {
@@ -198,7 +117,6 @@ public class DefaultServerSocket extends AbstractSocket {
 
             running = true;
             startTime = System.currentTimeMillis();
-
             startServer();
         } else {
             changeState(SocketState.STANDBY);
@@ -206,20 +124,13 @@ public class DefaultServerSocket extends AbstractSocket {
         }
     }
 
-    /**
-     * Start the server socket by binding to the configured port
-     * and accepting incoming connections.
-     *
-     * @throws InterruptedException if bind is interrupted
-     */
     private synchronized void startServer() throws InterruptedException {
         if (!running) {
-            log.warn("Skip start: {} not running, cannot activate", getId());
+            log.warn("Skip start: {} not running", getId());
             return;
         }
 
-        if (getState() == SocketState.LISTEN
-            || getState() == SocketState.ACTIVE) {
+        if (getState() == SocketState.LISTEN || getState() == SocketState.ACTIVE) {
             log.warn("Skip start: {} already {}", getId(), getState());
             return;
         }
@@ -231,16 +142,16 @@ public class DefaultServerSocket extends AbstractSocket {
                     .option(ChannelOption.SO_REUSEADDR, true)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childOption(ChannelOption.TCP_NODELAY, true)
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                    .childHandler(new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
                         @Override
-                        protected void initChannel(SocketChannel ch) {
+                        protected void initChannel(io.netty.channel.socket.SocketChannel ch) {
                             ch.pipeline().addLast(new ChannelInboundAdapter(channelPool));
                             ch.pipeline().addLast(new LengthFieldBasedFrameDecoder(
-                                    Integer.MAX_VALUE, 0, 2, 0, 2
+                                    MAX_FRAME_LENGTH, 0, 2, 0, 2
                             ));
                             ch.pipeline().addLast(new ByteDecoder());
                             ch.pipeline().addLast(new ServerInboundHandler(
-                                    sm, DefaultServerSocket.this, parser, forward
+                                    DefaultServerSocket.this, parser, forward, coordinator
                             ));
                             ch.pipeline().addLast(new ByteEncoder());
                             ch.pipeline().addLast(new LengthFieldPrepender(2));
@@ -255,15 +166,11 @@ public class DefaultServerSocket extends AbstractSocket {
             log.info("{} listening on {}", getId(), this.port);
         } catch (Exception e) {
             changeState(SocketState.ERROR);
-
             log.error("Failed to bind server socket {}", getId(), e);
             throw e;
         }
     }
 
-    /**
-     * Stops the server socket and closes all active connections.
-     */
     @Override
     public synchronized void stop() {
         if (!running) {
@@ -285,16 +192,10 @@ public class DefaultServerSocket extends AbstractSocket {
             log.info("{} stopped", getId());
         } catch (Exception e) {
             changeState(SocketState.ERROR);
-            log.error("Failed to demote socket {}", getId(), e);
+            log.error("Failed to stop socket {}", getId(), e);
         }
     }
 
-    /**
-     * Gracefully shuts down the server socket and releases
-     * all Netty resources.
-     *
-     * @throws InterruptedException if shutdown is interrupted
-     */
     @Override
     public synchronized void shutdown() throws InterruptedException {
         stop();
@@ -310,11 +211,6 @@ public class DefaultServerSocket extends AbstractSocket {
         log.info("{} shutdown", getId());
     }
 
-    /**
-     * Returns the server channel.
-     *
-     * @return server channel or {@code null} if not active
-     */
     public Channel getServerChannel() {
         return serverChannel;
     }
@@ -338,4 +234,3 @@ public class DefaultServerSocket extends AbstractSocket {
         this.socketState = socketState;
     }
 }
-
