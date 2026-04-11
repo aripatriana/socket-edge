@@ -1,6 +1,7 @@
 package com.socket.edge.core.engine;
 
 import com.socket.edge.constant.Direction;
+import com.socket.edge.core.AuditLogger;
 import com.socket.edge.core.ChannelCfgSelector;
 import com.socket.edge.core.MetadataHolder;
 import com.socket.edge.core.SystemConfig;
@@ -44,6 +45,7 @@ public class SEEngine extends RouteBuilder {
     private CorrelationStore correlationStore;
     private final TransportProvider transportProvider;
     private final SystemConfig config;
+    private final AuditLogger auditLogger;
 
     public SEEngine(
             SystemConfig config,
@@ -51,7 +53,8 @@ public class SEEngine extends RouteBuilder {
             Iso8583ProfileResolver profileProcessor,
             ChannelCfgSelector channelCfgSelector,
             CorrelationStore correlationStore,
-            TransportProvider transportProvider
+            TransportProvider transportProvider,
+            AuditLogger auditLogger
     ) {
         this.config = config;
         this.metadataHolder = metadataHolder;
@@ -59,6 +62,7 @@ public class SEEngine extends RouteBuilder {
         this.channelCfgSelector = channelCfgSelector;
         this.correlationStore = correlationStore;
         this.transportProvider = transportProvider;
+        this.auditLogger = auditLogger;
     }
 
     public void bindSocketManager(SocketManager socketManager) {
@@ -181,6 +185,9 @@ public class SEEngine extends RouteBuilder {
 
                     long latencyNs = System.nanoTime() - (long) ctx.getProperty("receivedTimeNs");
                     ctx.getSocketChannel().onComplete(latencyNs);
+
+                    // Audit trail
+                    auditLogger.log(ctx);
                 });
 
         /*
@@ -225,6 +232,9 @@ public class SEEngine extends RouteBuilder {
 
                         long latencyNs = System.nanoTime() - (long) ctx.getProperty("receivedTimeNs");
                         ctx.getSocketChannel().onComplete(latencyNs);
+
+                        // Audit trail
+                        auditLogger.log(ctx);
 
                     } finally {
                         correlationStore.remove(ctx.getCorrelationKey());

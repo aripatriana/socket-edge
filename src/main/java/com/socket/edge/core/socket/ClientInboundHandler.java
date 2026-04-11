@@ -5,6 +5,7 @@ import com.socket.edge.core.MessageContextProcess;
 import com.socket.edge.core.MessageContext;
 import com.socket.edge.constant.SocketType;
 import com.socket.edge.utils.IsoParser;
+import com.socket.edge.utils.PciMaskUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.slf4j.Logger;
@@ -16,13 +17,7 @@ import java.util.Map;
 /**
  * Client-side Netty inbound handler for ISO 8583 message processing.
  *
- * <p>v3.0 changes:
- * <ul>
- *   <li>Removed {@code SocketManager} dependency</li>
- *   <li>Lifecycle orchestration delegated to {@link SocketLifecycleCoordinator}</li>
- *   <li>Fixed: PCI-DSS compliant logging</li>
- *   <li>Fixed: proper pattern matching with early return</li>
- * </ul>
+ * <p>v3.0: PCI field masking integrated for all log output.</p>
  *
  * @author Ari Patriana
  * @since 3.0.0
@@ -35,17 +30,20 @@ public final class ClientInboundHandler extends ChannelInboundHandlerAdapter {
     private final IsoParser isoParser;
     private final MessageContextProcess messageContextProcess;
     private final SocketLifecycleCoordinator coordinator;
+    private final PciMaskUtil pciMaskUtil;
 
     public ClientInboundHandler(
             DefaultClientSocket clientSocket,
             IsoParser isoParser,
             MessageContextProcess messageContextProcess,
-            SocketLifecycleCoordinator coordinator
+            SocketLifecycleCoordinator coordinator,
+            PciMaskUtil pciMaskUtil
     ) {
         this.clientSocket = clientSocket;
         this.isoParser = isoParser;
         this.messageContextProcess = messageContextProcess;
         this.coordinator = coordinator;
+        this.pciMaskUtil = pciMaskUtil;
     }
 
     @Override
@@ -59,7 +57,6 @@ public final class ClientInboundHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        // v3.0 FIX: proper pattern matching with early return
         if (!(msg instanceof byte[] rawBytes)) {
             log.warn("Unsupported message type: {}", msg.getClass());
             return;
@@ -68,11 +65,14 @@ public final class ClientInboundHandler extends ChannelInboundHandlerAdapter {
         try {
             socketChannel.onMessage();
 
-            if (log.isDebugEnabled()) {
-                log.debug("{} received {} bytes", clientSocket.getId(), rawBytes.length);
+            Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
+
+            if (log.isInfoEnabled()) {
+                log.info("{} recv {} bytes {}",
+                        clientSocket.getId(), rawBytes.length,
+                        pciMaskUtil.safeLogString(parsedIsoFields, "de1", "de11", "de37", "de2"));
             }
 
-            Map<String, String> parsedIsoFields = isoParser.parse(rawBytes);
             MessageContext msgCtx = new MessageContext(parsedIsoFields, rawBytes);
             msgCtx.setSocketId(clientSocket.getId());
             msgCtx.setChannelName(clientSocket.getName());
@@ -107,16 +107,12 @@ public final class ClientInboundHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
-
         var socketChannel = clientSocket.channelPool().getChannel(ctx.channel());
         if (socketChannel == null) {
             log.warn("Skip channelInactive: SocketChannel not found for {}", ctx.channel().id());
             return;
         }
-
         socketChannel.onDisconnect();
-
-        // v3.0: delegate lifecycle to coordinator
         coordinator.onClientChannelInactive(clientSocket);
     }
 
