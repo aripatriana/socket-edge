@@ -24,6 +24,7 @@ import com.socket.edge.http.service.CorrelationCacheService;
 import com.socket.edge.http.service.ReloadCfgService;
 import com.socket.edge.model.ChannelCfg;
 import com.socket.edge.model.Metadata;
+import com.socket.edge.model.FailoverPolicy;
 import com.socket.edge.model.RolePolicy;
 import com.socket.edge.utils.IsoParser;
 import com.typesafe.config.Config;
@@ -256,30 +257,59 @@ public class SystemBootstrap {
 
         // Hazelcast
         com.hazelcast.config.Config hzConfig = new com.hazelcast.config.Config();
-        hzConfig.setClusterName(rawConfig.hasPath("cluster.cluster-name")
-                ? rawConfig.getString("cluster.cluster-name") : "socket-edge-cluster");
+        String clusterName = rawConfig.hasPath("cluster.cluster-name")
+                ? rawConfig.getString("cluster.cluster-name") : "socket-edge-cluster";
+        hzConfig.setClusterName(clusterName);
 
         hzConfig.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
         TcpIpConfig tcp = hzConfig.getNetworkConfig().getJoin().getTcpIpConfig().setEnabled(true);
-        rawConfig.getStringList("cluster.members").forEach(tcp::addMember);
+
+        java.util.List<String> members = rawConfig.getStringList("cluster.members");
+        members.forEach(tcp::addMember);
+
+        // Hazelcast map config — read backup counts from config
+        int backupCount = rawConfig.hasPath("cluster.hazelcast.map-backup-count")
+                ? rawConfig.getInt("cluster.hazelcast.map-backup-count") : 1;
+        int asyncBackupCount = rawConfig.hasPath("cluster.hazelcast.map-async-backup-count")
+                ? rawConfig.getInt("cluster.hazelcast.map-async-backup-count") : 0;
 
         hzConfig.addMapConfig(new MapConfig("socket-edge-state")
-                .setBackupCount(1).setAsyncBackupCount(0));
+                .setBackupCount(backupCount)
+                .setAsyncBackupCount(asyncBackupCount));
 
         HazelcastInstance hazelcast = Hazelcast.newHazelcastInstance(hzConfig);
         JChannel channel = new JChannel(jGroupPath.toAbsolutePath().toString());
 
         ClusterListener listener = new SocketClusterAdapter(socketManager);
 
+        // Role policy
         RolePreference prefer = RolePreference.valueOf(
                 (rawConfig.hasPath("cluster.role.prefer")
                         ? rawConfig.getString("cluster.role.prefer") : "slave").toUpperCase());
         boolean strict = rawConfig.hasPath("cluster.role.strict")
                 && rawConfig.getBoolean("cluster.role.strict");
+        RolePolicy rolePolicy = new RolePolicy(prefer, strict);
 
-        String clusterName = rawConfig.hasPath("cluster.cluster-name")
-                ? rawConfig.getString("cluster.cluster-name") : "socket-edge-cluster";
-        ClusterManager clusterManager = new ClusterManager(channel, new RolePolicy(prefer, strict), listener, clusterName);
+        // Failover policy
+        long failoverTimeout = rawConfig.hasPath("cluster.failover.failover-timeout")
+                ? rawConfig.getLong("cluster.failover.failover-timeout") : 5000;
+        String splitBrainStr = rawConfig.hasPath("cluster.failover.split-brain-policy")
+                ? rawConfig.getString("cluster.failover.split-brain-policy") : "keep-oldest";
+        int quorumSize = rawConfig.hasPath("cluster.failover.quorum-size")
+                ? rawConfig.getInt("cluster.failover.quorum-size") : 1;
+
+        FailoverPolicy failoverPolicy = new FailoverPolicy(
+                quorumSize,
+                FailoverPolicy.parseSplitBrainPolicy(splitBrainStr),
+                failoverTimeout
+        );
+
+        log.info("Cluster config: clusterName={}, quorum={}, splitBrain={}, failoverTimeout={}ms",
+                clusterName, quorumSize, splitBrainStr, failoverTimeout);
+
+        ClusterManager clusterManager = new ClusterManager(
+                channel, rolePolicy, failoverPolicy, listener,
+                clusterName, members.size());
 
         // Override correlation store with Hazelcast-backed for cluster mode
         correlationStore = CorrelationStoreFactory.cluster(
